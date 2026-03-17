@@ -2,7 +2,7 @@ import numpy as np
 import copy
 import numbers
 
-def integer_to_dit_string(integer, dit_dimension, dit_string_length, convention='R'):
+def integer_to_dit_string(integer, dit_string_length, dit_dimension=2, convention='R'):
     """
     Encode an integer into a dit_string.
 
@@ -10,10 +10,10 @@ def integer_to_dit_string(integer, dit_dimension, dit_string_length, convention=
     ----------
     integer : int
             The integer to encode.
-    dit_dimension : int
-            The dimension of the dits (e.g., 2 for binary, 3 for ternary).
     dit_string_length : int
             The length of the resulting dit string.
+    dit_dimension : int, optional
+            The dimension of the dits (e.g., 2 for binary, 3 for ternary). Default is 2.
     convention : str, optional
             The direction of the encoding. 'R' for right-aligned (default), 'L' for left-aligned.
     
@@ -50,7 +50,7 @@ def integer_to_dit_string(integer, dit_dimension, dit_string_length, convention=
     dit_string = np.array(dit_string)
     return dit_string[::-1] if convention == 'R' else dit_string
 
-def dit_string_to_integer(dit_string, dit_dimension, convention='R'):
+def dit_string_to_integer(dit_string, dit_dimension=2, convention='R'):
     """
     Decode a dit_string back into an integer.
 
@@ -58,8 +58,8 @@ def dit_string_to_integer(dit_string, dit_dimension, convention='R'):
     ----------
     dit_string : list or ndarray
             The dit_string to decode.
-    dit_dimension : int
-            The dimension of the dits (e.g., 2 for binary, 3 for ternary).
+    dit_dimension : int, optional
+            The dimension of the dits (e.g., 2 for binary, 3 for ternary). Default is 2.
     convention : str, optional
             The direction of the encoding. 'R' for right-aligned (default), 'L' for left-aligned.
 
@@ -182,7 +182,7 @@ def create_cylinder_set_indicator(fixed_dit_positions, set_size, dit_dimension=2
 
 def kronecker_develop(cylinder_set, dit_dimension=2, convention='R'):
     """
-    Convert a pattern of one-hot vectors into a single vector using Kronecker product.
+    Developp a computational basis representation or a factorized cylinder set indicator using Kronecker product.
 
     Parameters
     ----------
@@ -250,10 +250,8 @@ def belongs_to_cylinder_set(element,cylinder_set):
         raise TypeError("Each element of cylinder_set must be a vector-like object.")
     if any(any(value not in (0, 1) for value in vector) for vector in cylinder_set):
         raise ValueError("Each vector in cylinder_set must contain only 0 or 1 values.")
-    if any(len(vector) != len(element) for vector in cylinder_set):
-        raise ValueError("Each vector in cylinder_set must have the same length as the element.")
 
     for basis1,basis2 in zip(element,cylinder_set):
         if basis2 != [1,1] and basis1 != basis2:
-            return False
-    return True
+            return 0
+    return 1
