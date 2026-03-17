@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myopt"
+version = "0.1.0"
+description = "Optimization tools for research"
+authors = [
+  {name = "Baptiste Chevalier"}
+]
+dependencies = [
+  "numpy"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
