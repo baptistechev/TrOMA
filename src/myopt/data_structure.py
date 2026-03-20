@@ -144,6 +144,15 @@ def create_cylinder_set_indicator(fixed_dit_positions, set_size, dit_dimension=2
     -------
     list
             A list whose entries are the factorized indicators of the possible cylinder sets defined by fixing the dit positions to each possible values.
+    
+    Examples
+    --------
+    >>> create_cylinder_set_indicator([0, 1], 3, 2)
+    [[[1, 0], [1, 0], [1, 1]],
+     [[1, 0], [0, 1], [1, 1]],
+     [[0, 1], [1, 0], [1, 1]],
+     [[0, 1], [0, 1], [1, 1]]]
+            
     """
 
     fixed_dit_positions = list(fixed_dit_positions)
@@ -223,7 +232,7 @@ def kronecker_develop(cylinder_set, dit_dimension=2, convention='R'):
     return f
 
 
-def belongs_to_cylinder_set(element,cylinder_set):
+def belongs_to_cylinder_set(element,cylinder_set,dit_dimension=2):
     """
     Check if a element belongs to a given cylinder set.
 
@@ -252,6 +261,6 @@ def belongs_to_cylinder_set(element,cylinder_set):
         raise ValueError("Each vector in cylinder_set must contain only 0 or 1 values.")
 
     for basis1,basis2 in zip(element,cylinder_set):
-        if basis2 != [1,1] and basis1 != basis2:
+        if basis2 != [1 for _ in range(dit_dimension)] and basis1 != basis2:
             return 0
     return 1

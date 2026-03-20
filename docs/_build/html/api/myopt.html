@@ -48,9 +48,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-myopt.MCCO">myopt.MCCO module</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#module-myopt.abstract">myopt.abstract module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.compute_marginals_pair"><code class="docutils literal notranslate"><span class="pre">compute_marginals_pair()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.compute_marginals_quadruplets"><code class="docutils literal notranslate"><span class="pre">compute_marginals_quadruplets()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.compute_marginals_triplets"><code class="docutils literal notranslate"><span class="pre">compute_marginals_triplets()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.compute_marginal"><code class="docutils literal notranslate"><span class="pre">compute_marginal()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.constraints_for_all_interactions"><code class="docutils literal notranslate"><span class="pre">constraints_for_all_interactions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.constraints_for_nearest_neighbors_interactions"><code class="docutils literal notranslate"><span class="pre">constraints_for_nearest_neighbors_interactions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#myopt.abstract.reconstruct_structured_matrix_column"><code class="docutils literal notranslate"><span class="pre">reconstruct_structured_matrix_column()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-myopt.data_structure">myopt.data_structure module</a><ul>
@@ -108,26 +109,113 @@
 <section id="module-myopt.abstract">
 <span id="myopt-abstract-module"></span><h2>myopt.abstract module<a class="headerlink" href="#module-myopt.abstract" title="Link to this heading"></a></h2>
 <dl class="py function">
-<dt class="sig sig-object py" id="myopt.abstract.compute_marginals_pair">
-<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">compute_marginals_pair</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spectrum_bin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectrum_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.compute_marginals_pair" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="myopt.abstract.compute_marginal">
+<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">compute_marginal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function_input_dits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_constraints</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.compute_marginal" title="Link to this definition"></a></dt>
+<dd><p>Compute marginals of a sparse spectrum on one or several dit constraints.</p>
+<section id="supported-constraint-formats">
+<h3>Supported constraint formats<a class="headerlink" href="#supported-constraint-formats" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>single dict: <code class="docutils literal notranslate"><span class="pre">{dit_index:</span> <span class="pre">dit_value,</span> <span class="pre">...}</span></code> -&gt; returns <code class="docutils literal notranslate"><span class="pre">float</span></code></p></li>
+<li><p>single full dit assignment: <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">...]</span></code> -&gt; returns <code class="docutils literal notranslate"><span class="pre">float</span></code></p></li>
+<li><p>list of constraints (dicts or full dit assignments) -&gt; returns <code class="docutils literal notranslate"><span class="pre">list[float]</span></code></p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">param function_input_dits<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List of function inputs, each input is given in dits representation.</p>
+</dd>
+<dt class="field-even">type function_input_dits<span class="colon">:</span></dt>
+<dd class="field-even"><p>list or ndarray</p>
+</dd>
+<dt class="field-odd">param function_values<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Image of the function associated with each input.</p>
+</dd>
+<dt class="field-even">type function_values<span class="colon">:</span></dt>
+<dd class="field-even"><p>list or ndarray</p>
+</dd>
+<dt class="field-odd">param dit_constraints<span class="colon">:</span></dt>
+<dd class="field-odd"><p>One constraint or several constraints.</p>
+</dd>
+<dt class="field-even">type dit_constraints<span class="colon">:</span></dt>
+<dd class="field-even"><p>dict | sequence | list[dict | sequence]</p>
+</dd>
+<dt class="field-odd">returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sum(s) of values for states matching each provided constraint.</p>
+</dd>
+<dt class="field-even">rtype<span class="colon">:</span></dt>
+<dd class="field-even"><p>float or list of float</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="myopt.abstract.compute_marginals_quadruplets">
-<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">compute_marginals_quadruplets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spectrum_bin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectrum_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.compute_marginals_quadruplets" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="myopt.abstract.constraints_for_all_interactions">
+<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">constraints_for_all_interactions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dit_string_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interaction_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.constraints_for_all_interactions" title="Link to this definition"></a></dt>
+<dd><p>Compute constraints for all interactions and bit values, for a given interaction size.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dit_string_length</strong> (<em>int</em>) – The length of the dit string (number of dits in the string).</p></li>
+<li><p><strong>interaction_size</strong> (<em>int</em>) – The size of the interaction (number of neighbors to consider).</p></li>
+<li><p><strong>dit_dimension</strong> (<em>int</em><em>, </em><em>optional</em>) – The dimension of the dits (number of possible values for each dit), by default 2.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of all dit constraints corresponding to each interaction and bit value combination.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="myopt.abstract.compute_marginals_triplets">
-<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">compute_marginals_triplets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spectrum_bin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spectrum_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bit_v3</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.compute_marginals_triplets" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="myopt.abstract.constraints_for_nearest_neighbors_interactions">
+<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">constraints_for_nearest_neighbors_interactions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dit_string_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">interaction_size</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.constraints_for_nearest_neighbors_interactions" title="Link to this definition"></a></dt>
+<dd><p>Compute constraints for nearest neighbor interactions and bit values, for a given interaction size.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dit_string_length</strong> (<em>int</em>) – The length of the dit string (number of dits in the string).</p></li>
+<li><p><strong>interaction_size</strong> (<em>int</em>) – The size of the interaction (number of nearest neighbors to consider).</p></li>
+<li><p><strong>dit_dimension</strong> (<em>int</em><em>, </em><em>optional</em>) – The dimension of the dits (number of possible values for each dit), by default 2.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of all dit constraints corresponding to each nearest neighbor interaction and bit value combination.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="myopt.abstract.reconstruct_structured_matrix_column">
+<span class="sig-prename descclassname"><span class="pre">myopt.abstract.</span></span><span class="sig-name descname"><span class="pre">reconstruct_structured_matrix_column</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_constraints</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_string_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.abstract.reconstruct_structured_matrix_column" title="Link to this definition"></a></dt>
+<dd><p>Reconstruct a column of a structured matrix made of cylinder set indicators defined by the dit constraints, and given the element index.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>index</strong> (<em>int</em>) – The index of the element to check.</p></li>
+<li><p><strong>dit_constraints</strong> (<em>list</em><em> of </em><em>dict</em>) – List of dit constraints given as dictionaries to check.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The column of the structured matrix corresponding to this index, i.e. a list indicating whether the element satisfies each dit constraint or not.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of bool</p>
+</dd>
+</dl>
+</dd></dl>
 
 </section>
 <section id="module-myopt.data_structure">
 <span id="myopt-data-structure-module"></span><h2>myopt.data_structure module<a class="headerlink" href="#module-myopt.data_structure" title="Link to this heading"></a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="myopt.data_structure.belongs_to_cylinder_set">
-<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">belongs_to_cylinder_set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">element</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cylinder_set</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.belongs_to_cylinder_set" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">belongs_to_cylinder_set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">element</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cylinder_set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.belongs_to_cylinder_set" title="Link to this definition"></a></dt>
 <dd><p>Check if a element belongs to a given cylinder set.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -188,13 +276,13 @@
 
 <dl class="py function">
 <dt class="sig sig-object py" id="myopt.data_structure.dit_string_to_integer">
-<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">dit_string_to_integer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dit_string</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'R'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.dit_string_to_integer" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">dit_string_to_integer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dit_string</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'R'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.dit_string_to_integer" title="Link to this definition"></a></dt>
 <dd><p>Decode a dit_string back into an integer.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>dit_string</strong> (<em>list</em><em> or </em><em>ndarray</em>) – The dit_string to decode.</p></li>
-<li><p><strong>dit_dimension</strong> (<em>int</em>) – The dimension of the dits (e.g., 2 for binary, 3 for ternary).</p></li>
+<li><p><strong>dit_dimension</strong> (<em>int</em><em>, </em><em>optional</em>) – The dimension of the dits (e.g., 2 for binary, 3 for ternary). Default is 2.</p></li>
 <li><p><strong>convention</strong> (<em>str</em><em>, </em><em>optional</em>) – The direction of the encoding. ‘R’ for right-aligned (default), ‘L’ for left-aligned.</p></li>
 </ul>
 </dd>
@@ -209,14 +297,14 @@
 
 <dl class="py function">
 <dt class="sig sig-object py" id="myopt.data_structure.integer_to_dit_string">
-<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">integer_to_dit_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">integer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_string_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'R'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.integer_to_dit_string" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">integer_to_dit_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">integer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_string_length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'R'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.integer_to_dit_string" title="Link to this definition"></a></dt>
 <dd><p>Encode an integer into a dit_string.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>integer</strong> (<em>int</em>) – The integer to encode.</p></li>
-<li><p><strong>dit_dimension</strong> (<em>int</em>) – The dimension of the dits (e.g., 2 for binary, 3 for ternary).</p></li>
 <li><p><strong>dit_string_length</strong> (<em>int</em>) – The length of the resulting dit string.</p></li>
+<li><p><strong>dit_dimension</strong> (<em>int</em><em>, </em><em>optional</em>) – The dimension of the dits (e.g., 2 for binary, 3 for ternary). Default is 2.</p></li>
 <li><p><strong>convention</strong> (<em>str</em><em>, </em><em>optional</em>) – The direction of the encoding. ‘R’ for right-aligned (default), ‘L’ for left-aligned.</p></li>
 </ul>
 </dd>
@@ -232,7 +320,7 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="myopt.data_structure.kronecker_develop">
 <span class="sig-prename descclassname"><span class="pre">myopt.data_structure.</span></span><span class="sig-name descname"><span class="pre">kronecker_develop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cylinder_set</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dit_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">convention</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'R'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#myopt.data_structure.kronecker_develop" title="Link to this definition"></a></dt>
-<dd><p>Convert a pattern of one-hot vectors into a single vector using Kronecker product.</p>
+<dd><p>Developp a computational basis representation or a factorized cylinder set indicator using Kronecker product.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
