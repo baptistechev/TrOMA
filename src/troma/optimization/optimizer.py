@@ -163,6 +163,15 @@ def get_optimizer(name: str) -> Optimizer:
     -------
     Optimizer
         An instance of the requested optimizer.
+
+        Examples
+        --------
+        - ``get_optimizer("brute_force_max")`` returns an optimizer that can be used as
+            ``optimizer.optimize(marginals, sketch=sketch)``.
+        - ``get_optimizer("spin_chain_nn_max")`` returns an optimizer that can be used as
+            ``optimizer.optimize(marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``.
+        - ``get_optimizer("qaoa")`` returns an optimizer that can be used as
+            ``optimizer.optimize(marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3)``.
     """
     if not isinstance(name, str) or not name:
         raise TypeError("name must be a non-empty string.")
@@ -179,9 +188,15 @@ def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
     name : str
         The name of the optimizer to retrieve. Available optimizers can be listed with `list_optimizers()`.
     *args : Any
-        Positional arguments to pre-bind to the optimizer function.
+        Positional arguments to pre-bind. Typical examples are ``(marginals,)`` for
+        ``"brute_force_max"`` or ``"spin_chain_nn_max"``.
     **kwargs : Any
-        Keyword arguments to pre-bind to the optimizer function.
+        Keyword arguments matching the chosen backend. For example:
+
+        - ``bind_optimizer("brute_force_max", marginals, sketch=sketch)``
+        - ``bind_optimizer("spin_chain_nn_max", marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``
+        - ``bind_optimizer("dual_annealing", marginals, dit_constraints=constraints, dit_string_length=6, dit_dimension=2)``
+        - ``bind_optimizer("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, number_shots=2048)``
     
     Returns
     -------
@@ -205,9 +220,16 @@ def optimize(name: str, *args: Any, **kwargs: Any) -> int:
     name : str
         The name of the optimizer to retrieve. Available optimizers can be listed with `list_optimizers()`.
     *args : Any
-        Positional arguments to pass to the optimizer function.
+        Positional arguments for the selected backend. In practice this is often
+        ``(marginals,)``.
     **kwargs : Any
-        Keyword arguments to pass to the optimizer function.
+        Keyword arguments for the selected backend. Common usable combinations are:
+
+        - ``optimize("brute_force_max", marginals, sketch=sketch)``
+        - ``optimize("spin_chain_nn_max", marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``
+        - ``optimize("simulated_annealing", marginals, dit_constraints=constraints, dit_string_length=6, max_iter=500)``
+        - ``optimize("digital_annealing", marginals, number_iter=2000)``
+        - ``optimize("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, method="COBYLA")``
     
     Returns
     -------

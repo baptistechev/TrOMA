@@ -1,7 +1,7 @@
-myopt
+troma
 =====
 
 .. toctree::
    :maxdepth: 4
 
-   myopt
+   troma

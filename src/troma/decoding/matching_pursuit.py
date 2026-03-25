@@ -157,6 +157,13 @@ def get_matching_pursuit(name: str) -> MatchingPursuit:
     -------
     MatchingPursuit
         An instance of the requested matching-pursuit adapter.
+
+        Examples
+        --------
+        - ``get_matching_pursuit("explicit")`` returns an adapter usable as
+            ``mp.run(marginals, sketch=sketch, iteration_number=10, step=0.2)``.
+        - ``get_matching_pursuit("abstract")`` returns an adapter usable as
+            ``mp.run(marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2)``.
     """
     if not isinstance(name, str) or not name:
         raise TypeError("name must be a non-empty string.")
@@ -173,9 +180,14 @@ def bind_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> MatchingPursu
     name : str
         The name of the matching-pursuit backend to retrieve. Available backends can be listed with `list_matching_pursuits()`.
     *args : Any
-        Positional arguments to pre-bind to the matching-pursuit function.
+        Positional arguments to pre-bind. Typical examples are ``(marginals,)``.
     **kwargs : Any
-        Keyword arguments to pre-bind to the matching-pursuit function.
+        Keyword arguments matching the chosen backend. For example:
+
+        - ``bind_matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10)``
+        - ``bind_matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10, step=0.2, optimizer=get_optimizer("brute_force_max"))``
+        - ``bind_matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10)``
+        - ``bind_matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2, dit_dimension=2)``
     
     Returns
     -------
@@ -222,9 +234,15 @@ def matching_pursuit(name: str, *args: Any, **kwargs: Any) -> Any:
     name : str
         The name of the matching-pursuit backend to retrieve. Available backends can be listed with `list_matching_pursuits()`.
     *args : Any
-        Positional arguments to pass to the matching-pursuit function.
+        Positional arguments for the selected backend. In practice this is often
+        ``(marginals,)``.
     **kwargs : Any
-        Keyword arguments to pass to the matching-pursuit function.
+        Keyword arguments for the selected backend. Common usable combinations are:
+
+        - ``matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10)``
+        - ``matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10, step=0.2)``
+        - ``matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10)``
+        - ``matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2, dit_dimension=2)``
     
     Returns
     -------

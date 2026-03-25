@@ -11,10 +11,10 @@ sys.path.insert(0, os.path.abspath('../src'))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'my_opt_lib'
+project = 'TrOMA libdocs'
 copyright = '2026, Chevalier Baptiste'
 author = 'Chevalier Baptiste'
-release = '0.1.0'
+release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
