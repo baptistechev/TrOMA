@@ -1,4 +1,4 @@
-troma
+detailed functions documentation
 =====
 
 .. toctree::
