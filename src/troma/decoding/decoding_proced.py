@@ -4,8 +4,10 @@ import numpy as np
 
 from ..sketchs import abstract as ab
 from ..optimization import optimizer as optimizer_api
+from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 def _column_vector_to_array(vec):
+    _ensure_iterable("vec", vec)
     return np.asarray(vec).reshape(-1)
 
 
@@ -34,6 +36,12 @@ def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, opt
     numpy array
         A 2D numpy array where each row contains the index of a selected column from the sketch matrix and its corresponding coefficient in the sparse solution.
     """
+    _ensure_iterable("marginals", marginals)
+    if not hasattr(sketch, "__getitem__"):
+        raise TypeError("sketch must be an indexable matrix-like object.")
+    iteration_number = _ensure_int("iteration_number", iteration_number, min_value=1)
+    if step is not None and not isinstance(step, (int, float)):
+        raise TypeError("step must be a real number or None.")
 
     if optimizer is None:
         optimizer = optimizer_api.get_optimizer("brute_force_max")
@@ -106,6 +114,17 @@ def matchingpursuit_abstract(
     numpy array
         A 2D numpy array where each row contains the index of a selected column from the sketch matrix and its corresponding coefficient in the sparse solution.
     """
+    _ensure_iterable("marginals", marginals)
+    if not isinstance(dit_constraints, (list, tuple)):
+        raise TypeError("dit_constraints must be a list or tuple.")
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
+    iteration_number = _ensure_int("iteration_number", iteration_number, min_value=1)
+    interaction_size = _ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    if interaction_size > dit_string_length:
+        raise ValueError("interaction_size must be <= dit_string_length.")
+    if step is not None and not isinstance(step, (int, float)):
+        raise TypeError("step must be a real number or None.")
 
     if optimizer is None:
         optimizer = optimizer_api.get_optimizer("spin_chain_nn_max")

@@ -58,7 +58,7 @@ class Sketch(ABC):
     Concrete subclasses differ in how that matrix is stored / described:
 
     * :class:`ConstraintSketch`  — implicit description via dit constraints.
-    * :class:`ExplicitSketch`    — explicit ``np.matrix`` stored in memory.
+    * :class:`ExplicitSketch`    — explicit ``np.ndarray`` stored in memory.
 
     All three methods are *static* so that the class itself acts as a
     strategy/namespace: no instance state is needed.
@@ -90,7 +90,7 @@ class Sketch(ABC):
         -------
         Sketch object whose type depends on the concrete implementation
         (:class:`list` of :class:`dict` for :class:`ConstraintSketch`,
-        :class:`np.matrix` for :class:`ExplicitSketch`).
+        :class:`np.ndarray` for :class:`ExplicitSketch`).
         """
 
     @staticmethod
@@ -234,7 +234,7 @@ class ConstraintSketch(Sketch):
 class ExplicitSketch(Sketch):
     """Sketch backed by an explicit matrix stored in memory.
 
-    The sketch is a :class:`np.matrix` whose rows correspond to indicator
+    The sketch is a :class:`np.ndarray` whose rows correspond to indicator
     vectors for each cylinder set.  The function must be given as a dense
     array of values over the *full* dit-string spectrum.
 
@@ -246,7 +246,7 @@ class ExplicitSketch(Sketch):
         dit_string_length: int,
         interaction_size: int,
         dit_dimension: int = 2,
-    ) -> np.matrix:
+    ) -> np.ndarray:
         """Return the nearest-neighbor sketch matrix."""
         return nearest_neighbors_interactions_sketch(
             dit_string_length, interaction_size, dit_dimension
@@ -257,7 +257,7 @@ class ExplicitSketch(Sketch):
         dit_string_length: int,
         interaction_size: int,
         dit_dimension: int = 2,
-    ) -> np.matrix:
+    ) -> np.ndarray:
         """Return the all-interactions sketch matrix."""
         return all_interactions_sketch(
             dit_string_length, interaction_size, dit_dimension
@@ -284,7 +284,7 @@ class ExplicitSketch(Sketch):
     @staticmethod
     def compute_marginals(
         function_data: Union[list, np.ndarray],
-        sketch: np.matrix,
+        sketch: np.ndarray,
     ) -> np.ndarray:
         return ExplicitSketch.compute_marginal(function_data, sketch)
 
@@ -294,7 +294,7 @@ class ExplicitSketch(Sketch):
         m: int,
         dit_dimension: int = 2,
         random_state=None,
-    ) -> np.matrix:
+    ) -> np.ndarray:
         return _random_sketch(
             dit_string_length,
             m,

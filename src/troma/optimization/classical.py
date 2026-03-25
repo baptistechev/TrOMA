@@ -1,9 +1,11 @@
 import copy
 import numpy as np
 import scipy.optimize as scipy_opt
+from numbers import Real
 
 from ..sketchs import abstract as ab
 from .. import data_structure as ds
+from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 def brute_force_max(marginals,sketch):
     """
@@ -23,8 +25,13 @@ def brute_force_max(marginals,sketch):
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
-
-    return np.argmax(sketch.T * np.matrix(marginals).T)
+    _ensure_iterable("marginals", marginals)
+    if not hasattr(sketch, "T"):
+        raise TypeError("sketch must be a 2D array-like matrix.")
+    marginals = np.asarray(marginals)
+    if hasattr(sketch, "shape") and len(sketch.shape) >= 2 and sketch.shape[0] != marginals.shape[0]:
+        raise ValueError("marginals length must match sketch row count.")
+    return np.argmax(sketch.T @ marginals)
 
 
 def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dimension=2):
@@ -51,6 +58,16 @@ def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dime
     int
         The integer index of the optimal dit string configuration.
     """
+    _ensure_iterable("marginals", marginals)
+    marginals = list(marginals)
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = _ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    if interaction_size > dit_string_length:
+        raise ValueError("interaction_size must be <= dit_string_length.")
+    expected_marginals = (dit_string_length - interaction_size + 1) * (dit_dimension ** interaction_size)
+    if len(marginals) != expected_marginals:
+        raise ValueError("marginals length is inconsistent with dit_string_length, interaction_size and dit_dimension.")
 
     # Number of local interaction windows in the chain.
     n_windows = dit_string_length - interaction_size + 1
@@ -137,7 +154,7 @@ def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dime
 
 def dual_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=2, opt_func_kwargs=None):
     """
-    Use simulated annealing to find the value of the dit string that maximizes the sum of the marginals. This method is more efficient than brute force for large dit string lengths, but it may not always find the optimal solution.
+    Use dual-annealing to find the value of the dit string that maximizes the sum of the marginals. This method is more efficient than brute force for large dit string lengths, but it may not always find the optimal solution.
 
     Parameters
     ----------
@@ -156,6 +173,16 @@ def dual_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
+    _ensure_iterable("marginals", marginals)
+    marginals = list(marginals)
+    if not isinstance(dit_constraints, (list, tuple)):
+        raise TypeError("dit_constraints must be a list or tuple.")
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    if opt_func_kwargs is not None and not isinstance(opt_func_kwargs, dict):
+        raise TypeError("opt_func_kwargs must be a dict or None.")
+    if len(marginals) != len(dit_constraints):
+        raise ValueError("marginals and dit_constraints must have the same length.")
 
     bounds = [(0, dit_dimension**dit_string_length - 1)]
 
@@ -168,6 +195,49 @@ def dual_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=
 
 
 def simulated_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=2, max_iter=1000, T0=1.0, alpha=0.99):
+    """
+    Use simulated annealing to find the value of the dit string that maximizes the sum of the marginals.
+    
+    Parameters
+    ----------
+    marginals : list of float
+        The marginals of the function defined on the full spectrum of dit strings.
+    dit_constraints : list of tuples
+        The list of dit constraints, where each constraint is represented as a tuple of the form (
+        indices, values), with 'indices' being a list of dit positions and 'values' being the corresponding dit values for the constraint.
+    dit_string_length : int
+        The length of the dit strings.
+    dit_dimension : int
+        The dimension of the dits, i.e., the number of possible values each dit can take.
+    max_iter : int, optional
+        The maximum number of iterations for the simulated annealing algorithm. The default is 1000.
+    T0 : float, optional
+        The initial temperature for the simulated annealing algorithm. The default is 1.0.
+    alpha : float, optional
+        The cooling rate for the simulated annealing algorithm. The default is 0.99.
+    
+    Returns
+    -------
+    int
+        The index of the dit string that maximizes the sum of the marginals.
+    """
+    _ensure_iterable("marginals", marginals)
+    marginals = list(marginals)
+    if not isinstance(dit_constraints, (list, tuple)):
+        raise TypeError("dit_constraints must be a list or tuple.")
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    max_iter = _ensure_int("max_iter", max_iter, min_value=1)
+    if not isinstance(T0, Real) or isinstance(T0, bool):
+        raise TypeError("T0 must be a real number.")
+    if T0 <= 0:
+        raise ValueError("T0 must be > 0.")
+    if not isinstance(alpha, Real) or isinstance(alpha, bool):
+        raise TypeError("alpha must be a real number.")
+    if alpha <= 0 or alpha >= 1:
+        raise ValueError("alpha must be in (0, 1).")
+    if len(marginals) != len(dit_constraints):
+        raise ValueError("marginals and dit_constraints must have the same length.")
 
     def simulated_annealing_binary(f, n):
         # initial random bitstring

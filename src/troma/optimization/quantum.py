@@ -2,10 +2,12 @@ import numpy as np
 import neal
 import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
+from numbers import Real
 
 from ..sketchs import abstract as ab
 from .. import data_structure as ds
-from . import _quantum_map as qm
+from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
+from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 
 def digital_annealing(marginals, number_iter=1000):
@@ -26,11 +28,16 @@ def digital_annealing(marginals, number_iter=1000):
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
+    _ensure_iterable("marginals", marginals)
+    number_iter = _ensure_int("number_iter", number_iter, min_value=1)
+    marginals = list(marginals)
+    if len(marginals) == 0 or len(marginals) % 4 != 0:
+        raise ValueError("marginals length must be a positive multiple of 4 for nearest-neighbor QUBO marginals.")
 
     #Define spin-chain Ising Hamiltonian from the marginals
     n = len(marginals)//4 + 1
     constraints = ab.constraints_for_nearest_neighbors_interactions(n,2)
-    H = qm.compute_hamiltonian(constraints, marginals, bit_string_length=n)
+    H = _compute_hamiltonian(constraints, marginals, bit_string_length=n)
 
     #Convert the Hamiltonian to the format required by the neal library
     h = {i: - H.get((i,), 0.0) for i in range(n)}
@@ -72,6 +79,23 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     int
         The index of the bit string that maximizes the sum of the marginals, as found by the QAOA algorithm.
     """
+    _ensure_iterable("marginals", marginals)
+    marginals = list(marginals)
+    if not isinstance(bit_constraints, (list, tuple)):
+        raise TypeError("bit_constraints must be a list or tuple of constraints.")
+    if len(bit_constraints) == 0:
+        raise ValueError("bit_constraints must be non-empty.")
+    if len(marginals) != len(bit_constraints):
+        raise ValueError("marginals and bit_constraints must have the same length.")
+    bit_string_length = _ensure_int("bit_string_length", bit_string_length, min_value=1)
+    number_layers = _ensure_int("number_layers", number_layers, min_value=1)
+    number_shots = _ensure_int("number_shots", number_shots, min_value=1)
+    if not isinstance(method, str):
+        raise TypeError("method must be a string.")
+    if random_seed is not None:
+        _ensure_int("random_seed", random_seed)
+    if backend is None or not hasattr(backend, "run"):
+        raise TypeError("backend must provide a run(circuit, **kwargs) method.")
 
     def _run_backend(circuit, shots):
         run_kwargs = {"shots": shots}
@@ -100,7 +124,7 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
             return weighted_sum / total_shots
 
         def run_qaoa_circuit(theta, ham_data):
-            circuit = qm.create_qaoa_circ(theta, ham_data, num_qubits=bit_string_length)
+            circuit = _create_qaoa_circ(theta, ham_data, num_qubits=bit_string_length)
             return _run_backend(circuit, number_shots)
 
         def execute_circ(theta):
@@ -121,10 +145,10 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     number_parameters = 2 * number_layers
     bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
 
-    ham_data = qm.compute_hamiltonian(bit_constraints,marginals, bit_string_length=bit_string_length)
+    ham_data = _compute_hamiltonian(bit_constraints,marginals, bit_string_length=bit_string_length)
     expectation = _get_expectation(ham_data)
     res = sk_opt.minimize(expectation, x0=np.ones(number_parameters), bounds=bounds, method=method)
 
-    qc_res = qm.create_qaoa_circ(res.x,ham_data, num_qubits=bit_string_length)
+    qc_res = _create_qaoa_circ(res.x,ham_data, num_qubits=bit_string_length)
     best_conf = sample_best_state(qc_res)
     return ds.dit_string_to_integer(best_conf, convention='L')

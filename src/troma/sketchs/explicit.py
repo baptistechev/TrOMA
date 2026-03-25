@@ -22,9 +22,17 @@ def compute_marginal(full_sprectrum_values, sketch_function):
     float
         The computed marginal value.
     """
-    y = sketch_function* np.matrix(full_sprectrum_values).T
-    
-    return np.array(y).flatten().tolist() 
+    if not isinstance(full_sprectrum_values, (list, tuple, np.ndarray)):
+        raise TypeError("full_sprectrum_values must be a sequence of numeric values.")
+    if not hasattr(sketch_function, "__matmul__"):
+        raise TypeError("sketch_function must support matrix multiplication (@).")
+    values = np.asarray(full_sprectrum_values)
+    if hasattr(sketch_function, "shape") and len(sketch_function.shape) >= 2:
+        if sketch_function.shape[1] != values.shape[0]:
+            raise ValueError("full_sprectrum_values length must match sketch_function column count.")
+    y = sketch_function @ values
+
+    return np.asarray(y).flatten().tolist()
 
 def nearest_neighbors_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2):
     """
@@ -41,7 +49,7 @@ def nearest_neighbors_interactions_sketch(dit_string_length, interaction_size, d
 
     Returns
     -------
-    np.matrix
+    np.ndarray
         The sketch matrix corresponding to nearest neighbors interactions.
     """
 
@@ -63,7 +71,7 @@ def nearest_neighbors_interactions_sketch(dit_string_length, interaction_size, d
     for set in cylinder_sets:
         A.append(ds.kronecker_develop(set,))
 
-    return np.matrix(A)
+    return np.array(A)
 
 def all_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2):
     """
@@ -80,7 +88,7 @@ def all_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2
     
     Returns
     -------
-    np.matrix
+    np.ndarray
         The sketch matrix corresponding to all interactions.
     """
 
@@ -102,7 +110,7 @@ def all_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2
     for set in cylinder_sets:
         A.append(ds.kronecker_develop(set,))
 
-    return np.matrix(A)
+    return np.array(A)
 
 
 def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
@@ -122,7 +130,7 @@ def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
 
     Returns
     -------
-    np.matrix
+    np.ndarray
         Random matrix of shape ``(m, dit_dimension ** dit_string_length)`` with
         i.i.d. entries sampled from ``N(0, 1/m)``.
     """
@@ -141,4 +149,4 @@ def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
     else:
         rng = np.random.default_rng(random_state)
 
-    return np.matrix(rng.standard_normal((m, n)) / np.sqrt(m))
+    return rng.standard_normal((m, n)) / np.sqrt(m)

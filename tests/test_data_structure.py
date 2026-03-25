@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from myopt.data_structure import (
+from troma.data_structure import (
     belongs_to_cylinder_set,
     create_cylinder_set_indicator,
     dit_string_to_computational_basis,

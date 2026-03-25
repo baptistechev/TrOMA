@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import inspect
 from importlib import import_module
 from typing import Any, Callable
+from .._validation import ensure_callable as _ensure_callable
 
 
 OptimizerFunction = Callable[..., int]
@@ -27,6 +28,13 @@ class FunctionOptimizer(Optimizer):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
+        if not isinstance(name, str) or not name:
+            raise TypeError("name must be a non-empty string.")
+        _ensure_callable("function", function)
+        if not isinstance(default_args, tuple):
+            raise TypeError("default_args must be a tuple.")
+        if default_kwargs is not None and not isinstance(default_kwargs, dict):
+            raise TypeError("default_kwargs must be a dict or None.")
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -99,6 +107,8 @@ _OPTIMIZER_REGISTRY: dict[str, tuple[str, str]] = {
 
 
 def _load_module(module_name: str):
+    if not isinstance(module_name, str) or not module_name:
+        raise TypeError("module_name must be a non-empty string.")
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -108,6 +118,8 @@ def _load_module(module_name: str):
 
 
 def _resolve_optimizer_function(name: str) -> OptimizerFunction:
+    if not isinstance(name, str) or not name:
+        raise TypeError("name must be a non-empty string.")
     key = name.lower()
     if key not in _OPTIMIZER_REGISTRY:
         raise ValueError(
@@ -121,21 +133,63 @@ def _resolve_optimizer_function(name: str) -> OptimizerFunction:
 
 
 def list_optimizers() -> list[str]:
-    """Return all registered optimizer names."""
+    """
+    Return all registered optimizer names.
+    
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    list[str]
+        A list of all registered optimizer names.
+    """
 
     return sorted(_OPTIMIZER_REGISTRY)
 
 
 def get_optimizer(name: str) -> Optimizer:
-    """Instantiate an optimizer adapter from a registered name."""
-
+    """
+    Instantiate an optimizer adapter from a registered name.
+    
+    Parameters
+    ----------
+    name : str
+        The name of the optimizer to retrieve. Available optimizers can be listed with `list_optimizers()`.
+        optimizers()`.
+    
+    Returns
+    -------
+    Optimizer
+        An instance of the requested optimizer.
+    """
+    if not isinstance(name, str) or not name:
+        raise TypeError("name must be a non-empty string.")
     function = _resolve_optimizer_function(name)
     return FunctionOptimizer(name=name.lower(), function=function)
 
 
 def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
-    """Instantiate an optimizer with default arguments pre-bound."""
-
+    """
+    Instantiate an optimizer with default arguments pre-bound.
+    
+    Parameters
+    ----------
+    name : str
+        The name of the optimizer to retrieve. Available optimizers can be listed with `list_optimizers()`.
+    *args : Any
+        Positional arguments to pre-bind to the optimizer function.
+    **kwargs : Any
+        Keyword arguments to pre-bind to the optimizer function.
+    
+    Returns
+    -------
+    Optimizer
+        An instance of the requested optimizer with the specified default arguments.
+    """
+    if not isinstance(name, str) or not name:
+        raise TypeError("name must be a non-empty string.")
     optimizer = get_optimizer(name)
     if not isinstance(optimizer, FunctionOptimizer):
         return optimizer
@@ -143,6 +197,23 @@ def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
 
 
 def optimize(name: str, *args: Any, **kwargs: Any) -> int:
-    """Convenience helper to optimize in one call."""
-
+    """
+    Convenience helper to optimize in one call.
+    
+    Parameters    
+    ----------
+    name : str
+        The name of the optimizer to retrieve. Available optimizers can be listed with `list_optimizers()`.
+    *args : Any
+        Positional arguments to pass to the optimizer function.
+    **kwargs : Any
+        Keyword arguments to pass to the optimizer function.
+    
+    Returns
+    -------
+    int
+        The result of the optimization.
+    """
+    if not isinstance(name, str) or not name:
+        raise TypeError("name must be a non-empty string.")
     return get_optimizer(name).optimize(*args, **kwargs)

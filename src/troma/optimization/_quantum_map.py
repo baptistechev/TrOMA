@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 from qiskit import QuantumCircuit
+from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 def compute_hamiltonian(constraints_sketch, marginals, bit_string_length=None):
     """
@@ -38,6 +39,14 @@ def compute_hamiltonian(constraints_sketch, marginals, bit_string_length=None):
     dict
         A dictionary mapping tuples of qubit indices (representing Z operators) to their coefficients in the Hamiltonian. Terms with coefficients close to zero are omitted.
     """
+    if not isinstance(constraints_sketch, (list, tuple)):
+        raise TypeError("constraints_sketch must be a list or tuple.")
+    _ensure_iterable("marginals", marginals)
+    if bit_string_length is not None:
+        bit_string_length = _ensure_int("bit_string_length", bit_string_length, min_value=1)
+    marginals = list(marginals)
+    if len(constraints_sketch) != len(marginals):
+        raise ValueError("constraints_sketch and marginals must have the same length.")
 
     def extract_weight(value):
         return float(value[0] if np.ndim(value) > 0 else value)
@@ -126,6 +135,30 @@ def compute_hamiltonian(constraints_sketch, marginals, bit_string_length=None):
     return {term: coef for term, coef in coeffs.items() if not np.isclose(coef, 0.0)}
 
 def create_qaoa_circ(theta, ham_data, num_qubits):
+    """
+    Create a QAOA circuit for a given Hamiltonian and parameters.
+
+    Parameters
+    ----------
+    theta : list of float
+        The list of QAOA parameters, where the first half corresponds to beta angles and the second half corresponds to gamma angles.
+    ham_data : dict
+        The Hamiltonian data, where keys are tuples of qubit indices and values are the corresponding coefficients.
+    num_qubits : int
+        The number of qubits in the circuit.
+
+    Returns
+    -------
+    QuantumCircuit
+        The constructed QAOA circuit.
+    """
+    _ensure_iterable("theta", theta)
+    if not isinstance(ham_data, dict):
+        raise TypeError("ham_data must be a dict mapping Z-terms to coefficients.")
+    num_qubits = _ensure_int("num_qubits", num_qubits, min_value=1)
+    if len(theta) % 2 != 0:
+        raise ValueError("theta length must be even (betas + gammas).")
+
     num_layers = len(theta) // 2
     circuit = QuantumCircuit(num_qubits)
 

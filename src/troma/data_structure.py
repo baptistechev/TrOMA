@@ -1,6 +1,14 @@
 import numpy as np
-import copy
-import numbers
+
+from ._validation import (
+        ensure_int as _ensure_int,
+        ensure_int_or_digit as _ensure_int_or_digit,
+        ensure_iterable as _ensure_iterable,
+        ensure_one_of as _ensure_one_of,
+        ensure_same_length as _ensure_same_length,
+        ensure_unique_items as _ensure_unique_items,
+        ensure_vector_collection as _ensure_vector_collection,
+)
 
 def integer_to_dit_string(integer, dit_string_length, dit_dimension=2, convention='R'):
     """
@@ -23,20 +31,10 @@ def integer_to_dit_string(integer, dit_string_length, dit_dimension=2, conventio
             The dit_string representation of the integer.
     """ 
 
-    if not isinstance(integer, numbers.Integral):
-        raise TypeError("integer must be an integer.")
-    if integer < 0:
-        raise ValueError("integer must be non-negative.")
-    if not isinstance(dit_dimension, numbers.Integral):
-        raise TypeError("dit_dimension must be an integer.")
-    if dit_dimension < 2:
-            raise ValueError("dit_dimension must be greater than or equal to 2.")
-    if not isinstance(dit_string_length, numbers.Integral):
-            raise TypeError("dit_string_length must be an integer.")
-    if dit_string_length < 0:
-            raise ValueError("dit_string_length must be non-negative.")
-    if convention not in ('R', 'L'):
-            raise ValueError("convention must be either 'R' or 'L'.")
+    integer = _ensure_int("integer", integer, min_value=0)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=0)
+    _ensure_one_of("convention", convention, ('R', 'L'))
     if integer >= dit_dimension ** dit_string_length and dit_string_length > 0:
             raise ValueError("integer cannot be represented with the given dit_dimension and dit_string_length.")
     if integer > 0 and dit_string_length == 0:
@@ -69,14 +67,10 @@ def dit_string_to_integer(dit_string, dit_dimension=2, convention='R'):
             The decoded integer.
     """
 
-    if not isinstance(dit_string, str) and not hasattr(dit_string, '__iter__'):
-            raise TypeError("dit_string must be an iterable of integers or a digit string.")
-    if not isinstance(dit_dimension, numbers.Integral):
-            raise TypeError("dit_dimension must be an integer.")
-    if dit_dimension < 2:
-            raise ValueError("dit_dimension must be greater than or equal to 2.")
-    if convention not in ('R', 'L'):
-            raise ValueError("convention must be either 'R' or 'L'.")
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    _ensure_one_of("convention", convention, ('R', 'L'))
+    if not isinstance(dit_string, str):
+            _ensure_iterable("dit_string", dit_string)
 
     if isinstance(dit_string, str):
             if len(dit_string) == 0:
@@ -89,10 +83,7 @@ def dit_string_to_integer(dit_string, dit_dimension=2, convention='R'):
             dit_string = list(dit_string)
 
     for value in dit_string:
-            if not isinstance(value, numbers.Integral):
-                    raise TypeError("Each value in dit_string must be an integer.")
-            if value < 0 or value >= dit_dimension:
-                    raise ValueError("Each value in dit_string must be in [0, dit_dimension-1].")
+            _ensure_int("Each value in dit_string", value, min_value=0, max_value=dit_dimension-1)
 
     dit_string_length = len(dit_string)
     number_basis = np.power(dit_dimension, np.arange(dit_string_length), dtype = float)
@@ -116,21 +107,18 @@ def dit_string_to_computational_basis(dit_string, dit_dimension=2):
     list
             The computational basis representation of the input dit_string.
     """
-
-    if not hasattr(dit_string, '__iter__'):
-        raise TypeError("dit_string must be an iterable of integers.")
-    if not isinstance(dit_dimension, numbers.Integral):
-        raise TypeError("dit_dimension must be an integer.")
-    if dit_dimension < 2:
-        raise ValueError("dit_dimension must be an integer >= 2.")
+    
+    _ensure_iterable("dit_string", dit_string, allow_str=True)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
 
     cp_representation = []
     for value in dit_string:
-        if not isinstance(value, (numbers.Integral, str)):
-            raise TypeError("Each value in dit_string must be an integer-like value or digit string.")
-        dit_value = int(value)
-        if dit_value < 0 or dit_value >= dit_dimension:
-            raise ValueError("Each dit value must be in [0, dit_dimension-1].")
+        dit_value = _ensure_int_or_digit(
+            "Each dit value",
+            value,
+            min_value=0,
+            max_value=dit_dimension - 1,
+        )
         cp_vector = [0] * dit_dimension
         cp_vector[dit_value] = 1
         cp_representation.append(cp_vector)
@@ -164,21 +152,15 @@ def create_cylinder_set_indicator(fixed_dit_positions, set_size, dit_dimension=2
             
     """
 
+    _ensure_iterable("fixed_dit_positions", fixed_dit_positions)
     fixed_dit_positions = list(fixed_dit_positions)
-    if not isinstance(set_size, numbers.Integral):
-            raise TypeError("set_size must be an integer.")
-    if set_size < 0:
-            raise ValueError("set_size must be non-negative.")
-    if not isinstance(dit_dimension, numbers.Integral):
-            raise TypeError("dit_dimension must be an integer.")
-    if dit_dimension < 2:
-            raise ValueError("dit_dimension must be an integer >= 2.")
-    if any(not isinstance(position, numbers.Integral) for position in fixed_dit_positions):
-            raise TypeError("All fixed_dit_positions indices must be integers.")
-    if any((position < 0 or position >= set_size) for position in fixed_dit_positions):
-        raise ValueError("All fixed_dit_positions indices must be in [0, set_size-1].")
-    if len(set(fixed_dit_positions)) != len(fixed_dit_positions):
-        raise ValueError("fixed_dit_positions indices must be unique.")
+    set_size = _ensure_int("set_size", set_size, min_value=0)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    for position in fixed_dit_positions:
+        position = _ensure_int("fixed_dit_positions index", position, min_value=0)
+        if position >= set_size:
+            raise ValueError("All fixed_dit_positions indices must be in [0, set_size-1].")
+        _ensure_unique_items("fixed_dit_positions", fixed_dit_positions)
 
     list_cylinder_sets = []
     n_positions = len(fixed_dit_positions)
@@ -216,21 +198,17 @@ def kronecker_develop(cylinder_set, dit_dimension=2, convention='R'):
     ndarray
             The developed indicator of the cylinder set.
     """
-    if not hasattr(cylinder_set, '__iter__'):
-        raise TypeError("cylinder_set must be an iterable of vectors.")
-    cylinder_set = list(cylinder_set)
-    if not isinstance(dit_dimension, numbers.Integral):
-        raise TypeError("dit_dimension must be an integer.")
-    if dit_dimension < 2:
-        raise ValueError("dit_dimension must be an integer >= 2.")
-    if convention not in ('R', 'L'):
-        raise ValueError("convention must be either 'R' or 'L'.")
-    if any(not hasattr(vector, '__len__') for vector in cylinder_set):
-        raise TypeError("Each element of cylinder_set must be a vector-like object.")
-    if not all(len(i) == dit_dimension for i in cylinder_set):
-        raise ValueError("Each one-hot vector in the cylinder set must have length equal to dit_dimension.")
-    if any(any(value not in (0, 1) for value in vector) for vector in cylinder_set):
-        raise ValueError("Each vector in cylinder_set must contain only 0 or 1 values.")
+
+    _ensure_iterable("cylinder_set", cylinder_set)
+    cylinder_set = _ensure_vector_collection("cylinder_set", cylinder_set)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    _ensure_one_of("convention", convention, ('R', 'L'))
+    _ensure_vector_collection(
+        "cylinder_set",
+        cylinder_set,
+        vector_length=dit_dimension,
+        binary=True,
+    )
     
     if convention == 'L':
         cylinder_set = cylinder_set[::-1]
@@ -257,19 +235,18 @@ def belongs_to_cylinder_set(element,cylinder_set,dit_dimension=2):
     bool
             If the element belongs to the cylinder set or not.
     """
-    
-    if not hasattr(element, '__iter__'):
-        raise TypeError("element must be an iterable of integers.")
-    if not hasattr(cylinder_set, '__iter__'):
-        raise TypeError("cylinder_set must be an iterable of vectors.")
-    element = list(element)
-    cylinder_set = list(cylinder_set)
-    if any(not hasattr(vector, '__len__') for vector in cylinder_set):
-        raise TypeError("Each element of cylinder_set must be a vector-like object.")
-    if any(any(value not in (0, 1) for value in vector) for vector in cylinder_set):
-        raise ValueError("Each vector in cylinder_set must contain only 0 or 1 values.")
 
-    for basis1,basis2 in zip(element,cylinder_set):
-        if basis2 != [1 for _ in range(dit_dimension)] and basis1 != basis2:
-            return 0
-    return 1
+    _ensure_iterable("element", element)
+    _ensure_iterable("cylinder_set", cylinder_set)
+    element = _ensure_vector_collection("element", element)
+    cylinder_set = _ensure_vector_collection("cylinder_set", cylinder_set, binary=True)
+    _ensure_same_length("element", element, "cylinder_set", cylinder_set)
+    for basis1, basis2 in zip(element, cylinder_set):
+        if len(basis1) != len(basis2):
+            raise ValueError("Each vector in element must have the same length as the corresponding vector in cylinder_set.")
+    for basis1, basis2 in zip(element, cylinder_set):
+        basis1 = list(basis1)
+        basis2 = list(basis2)
+        if basis2 != [1] * len(basis2) and basis1 != basis2:
+            return False
+    return True

@@ -2,6 +2,7 @@ from . import sketchs
 from .modeling import mcco_modeling
 from .decoding.matching_pursuit import matching_pursuit
 from .optimization.optimizer import get_optimizer
+from ._validation import ensure_callable as _ensure_callable, ensure_int as _ensure_int
 
 
 def solve_via_mcco(
@@ -16,7 +17,7 @@ def solve_via_mcco(
     optimizer=None,
     optimizer_name="spin_chain_nn_max",
 ):
-    """Run the full MCCO + compressive-sensing resolution pipeline.
+    """Run the full MCCO pipeline : modeling + sketching + matching pursuit.
 
     This helper orchestrates:
     1) ``mcco_modeling`` to build a sparse problem representation,
@@ -53,6 +54,24 @@ def solve_via_mcco(
         ``spectrum_pos``, ``spectrum_val``, ``spectrum_bin``,
         ``constraints``, ``y``, ``solution``.
     """
+    _ensure_callable("objective_function", objective_function)
+    number_samples = _ensure_int("number_samples", number_samples, min_value=1)
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = _ensure_int("interaction_size", interaction_size, min_value=1)
+    iteration_number = _ensure_int("iteration_number", iteration_number, min_value=1)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+
+    if interaction_size > dit_string_length:
+        raise ValueError("interaction_size must be <= dit_string_length.")
+    if step is not None and not isinstance(step, (int, float)):
+        raise TypeError("step must be a real number or None.")
+    if thereshold_parameter is not None and thereshold_parameter != "Auto" and not isinstance(thereshold_parameter, (int, float)):
+        raise TypeError("thereshold_parameter must be a real number, 'Auto', or None.")
+    if optimizer is not None and not hasattr(optimizer, "optimize"):
+        raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
+    if optimizer is None and optimizer_name is not None and not isinstance(optimizer_name, str):
+        raise TypeError("optimizer_name must be a string or None.")
+
     spectrum_pos, spectrum_val, spectrum_bin = mcco_modeling(
         objective_function,
         number_samples,
