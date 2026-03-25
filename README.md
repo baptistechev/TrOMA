@@ -13,10 +13,8 @@ See the doc at https://baptistechev.github.io/TrOMA/
 
 ## Installation
 
-From the project root:
-
 ```bash
-pip install -e .
+pip install troma
 ```
 
 Then in Python:
