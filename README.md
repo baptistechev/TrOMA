@@ -9,6 +9,8 @@ TrOMA is a small Python library for reconstructing or approximating sparse discr
 
 The main entry point is the `troma` module.
 
+See the doc at https://baptistechev.github.io/TrOMA/
+
 ## Installation
 
 From the project root:
