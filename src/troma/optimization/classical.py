@@ -1,10 +1,9 @@
-import numpy as np
 import copy
+import numpy as np
 import scipy.optimize as scipy_opt
 
-import data_structure as ds
-import abstract as ab
-from utils import array_to_column_vector
+from ..sketchs import abstract as ab
+from .. import data_structure as ds
 
 def brute_force_max(marginals,sketch):
     """
@@ -25,7 +24,8 @@ def brute_force_max(marginals,sketch):
         The index of the dit string that maximizes the sum of the marginals.
     """
 
-    return np.argmax(sketch.T * array_to_column_vector(marginals))
+    return np.argmax(sketch.T * np.matrix(marginals).T)
+
 
 def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dimension=2):
     """
@@ -134,6 +134,7 @@ def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dime
 
     return ds.dit_string_to_integer(spin_chain, dit_dimension=dit_dimension)
 
+
 def dual_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=2, opt_func_kwargs=None):
     """
     Use simulated annealing to find the value of the dit string that maximizes the sum of the marginals. This method is more efficient than brute force for large dit string lengths, but it may not always find the optimal solution.
@@ -164,6 +165,7 @@ def dual_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=
 
     result = scipy_opt.dual_annealing(objective_function, bounds, **(opt_func_kwargs or {}))
     return int(np.round(result.x[0]))
+
 
 def simulated_annealing(marginals, dit_constraints, dit_string_length, dit_dimension=2, max_iter=1000, T0=1.0, alpha=0.99):
 

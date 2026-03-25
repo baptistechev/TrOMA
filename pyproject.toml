@@ -10,7 +10,10 @@ authors = [
   {name = "Baptiste Chevalier"}
 ]
 dependencies = [
-  "numpy"
+  "numpy",
+  "scipy",
+  "qiskit_aer",
+  "neal"
 ]
 
 [tool.setuptools.packages.find]

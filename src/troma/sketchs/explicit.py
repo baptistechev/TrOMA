@@ -1,6 +1,8 @@
-import data_structure as ds
 import numpy as np
 import itertools
+from numbers import Integral
+
+from .. import data_structure as ds
 
 def compute_marginal(full_sprectrum_values, sketch_function):
     """
@@ -101,3 +103,42 @@ def all_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2
         A.append(ds.kronecker_develop(set,))
 
     return np.matrix(A)
+
+
+def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
+    """
+    Generate a random Gaussian sketch matrix typical of compressive sensing.
+
+    Parameters
+    ----------
+    dit_string_length : int
+        Length of dit strings.
+    m : int
+        Number of sketch rows (measurements).
+    dit_dimension : int, optional
+        Dimension of each dit, by default 2.
+    random_state : int | np.random.Generator | None, optional
+        Seed or numpy Generator for reproducibility. If None, use NumPy default RNG.
+
+    Returns
+    -------
+    np.matrix
+        Random matrix of shape ``(m, dit_dimension ** dit_string_length)`` with
+        i.i.d. entries sampled from ``N(0, 1/m)``.
+    """
+
+    if not isinstance(dit_string_length, Integral) or isinstance(dit_string_length, bool) or dit_string_length <= 0:
+        raise ValueError("dit_string_length must be a positive integer.")
+    if not isinstance(m, Integral) or isinstance(m, bool) or m <= 0:
+        raise ValueError("m must be a positive integer.")
+    if not isinstance(dit_dimension, Integral) or isinstance(dit_dimension, bool) or dit_dimension <= 1:
+        raise ValueError("dit_dimension must be an integer greater than 1.")
+
+    n = int(dit_dimension) ** int(dit_string_length)
+
+    if isinstance(random_state, np.random.Generator):
+        rng = random_state
+    else:
+        rng = np.random.default_rng(random_state)
+
+    return np.matrix(rng.standard_normal((m, n)) / np.sqrt(m))

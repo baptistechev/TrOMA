@@ -1,10 +1,8 @@
 import itertools
 from numbers import Integral, Real
-
 import numpy as np
-# from .data_structure import integer_to_dit_string
-from data_structure import integer_to_dit_string
 
+from ..data_structure import integer_to_dit_string
 
 def _validate_positive_int(name, value, *, min_value=1):
     if not isinstance(value, Integral) or isinstance(value, bool):
@@ -208,29 +206,6 @@ def constraints_for_all_interactions(dit_string_length, interaction_size, dit_di
         for constraint_values in itertools.product(range(dit_dimension), repeat=interaction_size):
             all_dits_constraints += [dict(zip(constraint_dits, constraint_values))]
     return all_dits_constraints
-
-# def reconstruct_structured_matrix_column(index, cylinder_set_list,dit_dimension=2):
-#     """
-#     Check to which cylinder sets an element belongs.
-#     Reconstruct a column of a structured matrix made of cylinder set indicators, given the element index.
-    
-#     Parameters
-#     ----------
-#     index : int
-#         The index of the element to check.
-#     cylinder_set_list : list
-#         List of cylinder set full indicators to check.
-        
-#     Returns
-#     -------
-#     list of bool
-#         The column of the structured matrix corresponding to this index, i.e. a list indicating whether the element belongs to each cylinder set or not.
-#     """
-#     length = len(cylinder_set_list[0])  # Assuming all cylinder sets have the same length
-#     dit_str = integer_to_dit_string(index, length, dit_dimension=dit_dimension)
-#     element = dit_string_to_computational_basis(dit_str, dit_dimension=dit_dimension)
-    
-#     return [belongs_to_cylinder_set(element, cyl_set,dit_dimension=dit_dimension) for cyl_set in cylinder_set_list]
 
 def reconstruct_structured_matrix_column(index, dit_constraints, dit_string_length,dit_dimension=2):
     """

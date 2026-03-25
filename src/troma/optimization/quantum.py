@@ -1,11 +1,12 @@
 import numpy as np
 import neal
-from qiskit_aer import AerSimulator
 import scipy.optimize as sk_opt
+from qiskit_aer import AerSimulator
 
-import data_structure as ds
-import abstract as ab
-import quantum_map as qm
+from ..sketchs import abstract as ab
+from .. import data_structure as ds
+from . import _quantum_map as qm
+
 
 def digital_annealing(marginals, number_iter=1000):
     """
@@ -25,7 +26,7 @@ def digital_annealing(marginals, number_iter=1000):
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
-    
+
     #Define spin-chain Ising Hamiltonian from the marginals
     n = len(marginals)//4 + 1
     constraints = ab.constraints_for_nearest_neighbors_interactions(n,2)
@@ -41,8 +42,35 @@ def digital_annealing(marginals, number_iter=1000):
     return ds.dit_string_to_integer(config)
 
 
-def QAOA(marginals, bit_constraints, bit_string_length, number_layers=3, method="COBYLA", backend=AerSimulator(), number_shots=512, random_seed=123):
+def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method="COBYLA", backend=AerSimulator(), number_shots=4096, random_seed=123):
     """
+    Perform Quantum Approximate Optimization Algorithm (QAOA) to find a solution to the optimization problem defined by the marginals and constraints.
+    The function assumes that the optimization problem can be mapped to a Hamiltonian defined on qubits, where the terms in the Hamiltonian correspond to the patterns in the constraints_sketch.
+    Applicable on bit strings of any length, and can handle arbitrary patterns of constraints, including those that do not correspond to nearest neighbor interactions.
+
+    Parameters
+    ----------
+    marginals : list of float
+        The marginals corresponding to each pattern in constraints_sketch. The order of the values should correspond to the order of the patterns in constraints_sketch.
+    bit_constraints : list of patterns
+        Each pattern can be either a list of local states (for full patterns) or a dict mapping qubit indices to fixed bit values (for constraints). The order of the patterns should correspond to the order of the marginals in the input.
+    bit_string_length : int
+        The length of the bit strings (i.e., the number of qubits).
+    number_layers : int, optional
+        The number of layers in the QAOA circuit. The default is 4.
+    method : str, optional
+        The optimization method to use for finding the optimal parameters of the QAOA circuit. The default is "COBYLA".
+    backend : qiskit provider, optional
+        The quantum backend to use for running the QAOA circuit. The default is AerSimulator().
+    number_shots : int, optional
+        The number of shots to use when running the QAOA circuit. The default is 4096.
+    random_seed : int, optional
+        The random seed to use for reproducibility when running the QAOA circuit. The default is 123.
+
+    Returns
+    ------
+    int
+        The index of the bit string that maximizes the sum of the marginals, as found by the QAOA algorithm.
     """
 
     def _run_backend(circuit, shots):
@@ -70,7 +98,7 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=3, method=
 
             total_shots = max(sum(counts.values()), 1)
             return weighted_sum / total_shots
-        
+
         def run_qaoa_circuit(theta, ham_data):
             circuit = qm.create_qaoa_circ(theta, ham_data, num_qubits=bit_string_length)
             return _run_backend(circuit, number_shots)
@@ -81,10 +109,15 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=3, method=
 
         return execute_circ
 
-    def sample_most_likely_state(circuit):
+    def sample_best_state(circuit):
         counts = _run_backend(circuit, number_shots)
-        return max(counts, key=counts.get)
-        
+
+        def objective_from_bitstring(bitstring):
+            config_index = ds.dit_string_to_integer(bitstring, convention='L')
+            return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
+
+        return min(counts, key=objective_from_bitstring)
+
     number_parameters = 2 * number_layers
     bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
 
@@ -93,5 +126,5 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=3, method=
     res = sk_opt.minimize(expectation, x0=np.ones(number_parameters), bounds=bounds, method=method)
 
     qc_res = qm.create_qaoa_circ(res.x,ham_data, num_qubits=bit_string_length)
-    best_conf = sample_most_likely_state(qc_res)
+    best_conf = sample_best_state(qc_res)
     return ds.dit_string_to_integer(best_conf, convention='L')
