@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "myopt"
-version = "0.1.0"
+name = "troma"
+version = "1.0"
 description = "Optimization tools for research"
 authors = [
   {name = "Baptiste Chevalier"}
@@ -13,7 +13,7 @@ dependencies = [
   "numpy",
   "scipy",
   "qiskit_aer",
-  "neal"
+  "dwave-neal"
 ]
 
 [tool.setuptools.packages.find]

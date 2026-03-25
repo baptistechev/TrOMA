@@ -1,8 +1,4 @@
 import numpy as np
-try:
-    from .. import data_structure as ds
-except ImportError:
-    import data_structure as ds
 
 def estimate_cost(dit_string, rules_rewards):
     """
