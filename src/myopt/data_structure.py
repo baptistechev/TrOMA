@@ -69,8 +69,8 @@ def dit_string_to_integer(dit_string, dit_dimension=2, convention='R'):
             The decoded integer.
     """
 
-    if not hasattr(dit_string, '__iter__'):
-            raise TypeError("dit_string must be an iterable of integers.")
+    if not isinstance(dit_string, str) and not hasattr(dit_string, '__iter__'):
+            raise TypeError("dit_string must be an iterable of integers or a digit string.")
     if not isinstance(dit_dimension, numbers.Integral):
             raise TypeError("dit_dimension must be an integer.")
     if dit_dimension < 2:
@@ -78,7 +78,16 @@ def dit_string_to_integer(dit_string, dit_dimension=2, convention='R'):
     if convention not in ('R', 'L'):
             raise ValueError("convention must be either 'R' or 'L'.")
 
-    dit_string = list(dit_string)
+    if isinstance(dit_string, str):
+            if len(dit_string) == 0:
+                    dit_string = []
+            elif not dit_string.isdigit():
+                    raise ValueError("When dit_string is a string, it must contain only digits.")
+            else:
+                    dit_string = [int(character) for character in dit_string]
+    else:
+            dit_string = list(dit_string)
+
     for value in dit_string:
             if not isinstance(value, numbers.Integral):
                     raise TypeError("Each value in dit_string must be an integer.")

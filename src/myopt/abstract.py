@@ -245,7 +245,7 @@ def reconstruct_structured_matrix_column(index, dit_constraints, dit_string_leng
         
     Returns
     -------
-    list of bool
+    numpy array of bool
         The column of the structured matrix corresponding to this index, i.e. a list indicating whether the element satisfies each dit constraint or not.
     """
 
@@ -272,4 +272,4 @@ def reconstruct_structured_matrix_column(index, dit_constraints, dit_string_leng
                     break
         else:
             column.append(1)
-    return column
+    return np.array(column)
