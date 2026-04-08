@@ -136,7 +136,7 @@ result = solve_via_mcco(
 	dit_string_length=8,
 	interaction_size=4,
 	iteration_number=5,
-	thereshold_parameter="Auto",
+	threshold_parameter="Auto",
 	optimizer=get_optimizer("spin_chain_nn_max"),
 )
 

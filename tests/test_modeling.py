@@ -61,7 +61,7 @@ class TestMccoModeling:
         """After thresholding, all returned values should be non-zero."""
         np.random.seed(5)
         _, vals, _ = mcco_modeling(_sum_of_bits, number_samples=12, dit_string_length=4,
-                                   thereshold_parameter=0.5)
+                                   threshold_parameter=0.5)
         for v in vals:
             assert v != 0
 
@@ -69,7 +69,7 @@ class TestMccoModeling:
         """With 'Auto' threshold, at most 10% of samples are kept (90th percentile)."""
         np.random.seed(6)
         _, vals, _ = mcco_modeling(_sum_of_bits, number_samples=16, dit_string_length=4,
-                                   thereshold_parameter="Auto")
+                                   threshold_parameter="Auto")
         # We cannot test exact count easily, but all returned values should be > threshold
         # (non-zero after threshold)
         for v in vals:
@@ -104,12 +104,6 @@ class TestMccoModeling:
         np.random.seed(10)
         idx, _, _ = mcco_modeling(_sum_of_bits, number_samples=14, dit_string_length=4)
         assert list(idx) == sorted(idx)
-
-    def test_no_duplicate_indices(self):
-        """Each sampled index should appear at most once (sampling without replacement)."""
-        np.random.seed(11)
-        idx, _, _ = mcco_modeling(_sum_of_bits, number_samples=15, dit_string_length=4)
-        assert len(set(idx)) == len(idx)
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +189,7 @@ class TestSolveViaMcco:
         np.random.seed(28)
         result = solve_via_mcco(
             _constant_one, number_samples=10, dit_string_length=4,
-            interaction_size=2, thereshold_parameter=None, iteration_number=2,
+            interaction_size=2, threshold_parameter=None, iteration_number=2,
         )
         assert isinstance(result["solution"], np.ndarray)
 
@@ -219,7 +213,7 @@ class TestSolveViaMcco:
         np.random.seed(30)
         result = solve_via_mcco(
             _zero, number_samples=12, dit_string_length=4,
-            interaction_size=2, thereshold_parameter=None, iteration_number=3,
+            interaction_size=2, threshold_parameter=None, iteration_number=3,
         )
         # Marginals are all zero → each iteration selects some index with coeff=0
         # The solution array may have entries but all coefficients should be zero

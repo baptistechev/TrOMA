@@ -1,7 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .modeling import mcco_modeling
-from .mcco_workflow import solve_via_mcco
+from .pipelines import solve_via_mcco, embedding_and_solve_via_mcco
 from .data_structure import (
 	integer_to_dit_string,
 	dit_string_to_integer,
@@ -9,6 +9,11 @@ from .data_structure import (
     create_cylinder_set_indicator,
     kronecker_develop,
     belongs_to_cylinder_set
+)
+from .embedding import (
+	spectrum_embedding,
+	spectrum_restriction,
+	reverse_spectrum_restriction
 )
 from .sketchs import ConstraintSketch, ExplicitSketch
 from .optimization.optimizer import (
@@ -31,12 +36,16 @@ __all__ = [
 	"__version__",
 	"mcco_modeling",
 	"solve_via_mcco",
+	"embedding_and_solve_via_mcco",
 	"integer_to_dit_string",
 	"dit_string_to_integer",
 	"dit_string_to_computational_basis",
 	"create_cylinder_set_indicator",
     "kronecker_develop",
 	"belongs_to_cylinder_set",
+	"spectrum_embedding",
+	"spectrum_restriction",
+	"reverse_spectrum_restriction",
 	"ConstraintSketch",
 	"ExplicitSketch",
 	"bind_optimizer",
