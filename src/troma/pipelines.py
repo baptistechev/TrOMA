@@ -105,6 +105,8 @@ def solve_via_mcco(
     dit_dimension=2,
     optimizer=None,
     optimizer_name="spin_chain_nn_max",
+    sampling_function=None,
+    sampling_args=None,
 ):
     """Run the full MCCO pipeline : modeling + sketching + matching pursuit.
 
@@ -135,6 +137,10 @@ def solve_via_mcco(
         Instantiated optimizer object. If ``None``, ``optimizer_name`` is used.
     optimizer_name : str or None, optional
         Name passed to ``get_optimizer`` when ``optimizer`` is not provided.
+    sampling_function : callable or None, optional
+        Sampling function passed to ``mcco_modeling``. If ``None``, default uniform sampling is used.
+    sampling_args : dict or None, optional
+        Additional arguments for the sampling function.
 
     Returns
     -------
@@ -160,6 +166,10 @@ def solve_via_mcco(
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
     if optimizer is None and optimizer_name is not None and not isinstance(optimizer_name, str):
         raise TypeError("optimizer_name must be a string or None.")
+    if sampling_function is not None and not callable(sampling_function):
+        raise TypeError("sampling_function must be callable or None.")
+    if sampling_args is not None and not isinstance(sampling_args, dict):
+        raise TypeError("sampling_args must be a dict or None.")
 
     spectrum_pos, spectrum_val, spectrum_dits = mcco_modeling(
         objective_function,
@@ -167,6 +177,8 @@ def solve_via_mcco(
         dit_string_length,
         threshold_parameter=threshold_parameter,
         dit_dimension=dit_dimension,
+        sampling_function=sampling_function,
+        sampling_args=sampling_args,
     )
 
     constraints, y, solution_pos, solution_val = _run_mcco_matching_pursuit(
@@ -205,6 +217,8 @@ def embedding_and_solve_via_mcco(
     dit_dimension=2,
     optimizer=None,
     optimizer_name="spin_chain_nn_max",
+    sampling_function=None,
+    sampling_args=None,
 ):
     """Restrict an embedded problem, solve it with MCCO, and lift results back.
 
@@ -241,6 +255,10 @@ def embedding_and_solve_via_mcco(
         Instantiated optimizer object. If ``None``, ``optimizer_name`` is used.
     optimizer_name : str or None, optional
         Name passed to ``get_optimizer`` when ``optimizer`` is not provided.
+    sampling_function : callable or None, optional
+        Sampling function passed to ``restricted_mcco_modeling``. If ``None``, default uniform sampling is used.
+    sampling_args : dict or None, optional
+        Additional arguments for the sampling function.
 
     Returns
     -------
@@ -265,6 +283,10 @@ def embedding_and_solve_via_mcco(
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
     if optimizer is None and optimizer_name is not None and not isinstance(optimizer_name, str):
         raise TypeError("optimizer_name must be a string or None.")
+    if sampling_function is not None and not callable(sampling_function):
+        raise TypeError("sampling_function must be callable or None.")
+    if sampling_args is not None and not isinstance(sampling_args, dict):
+        raise TypeError("sampling_args must be a dict or None.")
 
     if dit_restrictions is not None:
         dit_restrictions = _validate_dit_restrictions(dit_restrictions, dit_string_length)
@@ -284,6 +306,8 @@ def embedding_and_solve_via_mcco(
         dit_restrictions=dit_restrictions,
         dit_value_restrictions=dit_value_restrictions,
         additional_dits_val=additional_dits_val,
+        sampling_function=sampling_function,
+        sampling_args=sampling_args,
     )
 
     restricted_space_size = len(dit_restrictions) if dit_restrictions is not None else dit_string_length
