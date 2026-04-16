@@ -167,7 +167,11 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
 
     #Apply the threshold
     if threshold_parameter == "Auto":
-        threshold_parameter = _auto_threshold_from_non_zero(sample_values)
+        non_zero_sample_values = sample_values[sample_values != 0]
+        if non_zero_sample_values.size == 0:
+            threshold_parameter = 0
+        else:
+            threshold_parameter = np.percentile(non_zero_sample_values, 90)
     if threshold_parameter is not None:
         sample_values[sample_values < threshold_parameter] = 0
 
