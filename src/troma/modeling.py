@@ -29,7 +29,7 @@ def mcco_modeling(objective_function, number_samples, dit_string_length, thresho
     dit_string_length : int
         Length of the dit strings.
     threshold_parameter : float or str, optional
-        Threshold applied to the sampled values. If "Auto", the threshold is set to the 90th percentile of the sampled values.
+        Threshold applied to the sampled values. If "Auto", the threshold is set to the 90th percentile of the non-zero sampled values.
     dit_dimension : int, optional
         Dimension of the dits. Default is 2.
     sampling_function : callable or None, optional
@@ -73,7 +73,11 @@ def mcco_modeling(objective_function, number_samples, dit_string_length, thresho
 
     #Apply the threshold
     if threshold_parameter == "Auto":
-        threshold_parameter = np.percentile(sample_values, 90)
+        non_zero_sample_values = sample_values[sample_values != 0]
+        if non_zero_sample_values.size == 0:
+            threshold_parameter = 0
+        else:
+            threshold_parameter = np.percentile(non_zero_sample_values, 90)
     if threshold_parameter is not None:
         sample_values[sample_values < threshold_parameter] = 0
 
@@ -97,7 +101,7 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
     dit_string_length : int
         Length of the dit strings.
     threshold_parameter : float or str, optional
-        Threshold applied to the sampled values. If "Auto", the threshold is set to the 90th percentile of the sampled values.
+        Threshold applied to the sampled values. If "Auto", the threshold is set to the 90th percentile of the non-zero sampled values.
     dit_dimension : int, optional
         Dimension of the dits. Default is 2.
     dit_restrictions : list of int, optional
@@ -163,7 +167,7 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
 
     #Apply the threshold
     if threshold_parameter == "Auto":
-        threshold_parameter = np.percentile(sample_values, 90)
+        threshold_parameter = _auto_threshold_from_non_zero(sample_values)
     if threshold_parameter is not None:
         sample_values[sample_values < threshold_parameter] = 0
 
