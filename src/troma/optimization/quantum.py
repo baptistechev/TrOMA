@@ -1,8 +1,11 @@
 import numpy as np
+from numbers import Real
+
 import neal
 import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
-from numbers import Real
+from qiskit_ibm_runtime import SamplerV2
+from qiskit import transpile
 
 from ..sketchs import abstract as ab
 from .. import data_structure as ds
@@ -49,7 +52,7 @@ def digital_annealing(marginals, number_iter=1000):
     return ds.dit_string_to_integer(config)
 
 
-def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method="COBYLA", backend=AerSimulator(), number_shots=4096, random_seed=123):
+def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method="COBYLA", sampler=None, number_shots=4096, optimizer_options=None):
     """
     Perform Quantum Approximate Optimization Algorithm (QAOA) to find a solution to the optimization problem defined by the marginals and constraints.
     The function assumes that the optimization problem can be mapped to a Hamiltonian defined on qubits, where the terms in the Hamiltonian correspond to the patterns in the constraints_sketch.
@@ -67,18 +70,22 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
         The number of layers in the QAOA circuit. The default is 4.
     method : str, optional
         The optimization method to use for finding the optimal parameters of the QAOA circuit. The default is "COBYLA".
-    backend : qiskit provider, optional
-        The quantum backend to use for running the QAOA circuit. The default is AerSimulator().
+    sampler : qiskit provider, optional
+        The quantum sampler to use for running the QAOA circuit. The default is None, which uses the AerSimulator().
     number_shots : int, optional
         The number of shots to use when running the QAOA circuit. The default is 4096.
-    random_seed : int, optional
-        The random seed to use for reproducibility when running the QAOA circuit. The default is 123.
-
+    optimizer_options : dict, optional
+        Additional keyword options forwarded to ``scipy.optimize.minimize``. This can be used, for example,
+        to limit the number of optimizer evaluations with entries such as ``{"maxiter": 30}``.
+    
     Returns
     ------
     int
         The index of the bit string that maximizes the sum of the marginals, as found by the QAOA algorithm.
     """
+
+    #Security checks on the inputs
+    #-----------------------------
     _ensure_iterable("marginals", marginals)
     marginals = list(marginals)
     if not isinstance(bit_constraints, (list, tuple)):
@@ -92,63 +99,101 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     number_shots = _ensure_int("number_shots", number_shots, min_value=1)
     if not isinstance(method, str):
         raise TypeError("method must be a string.")
-    if random_seed is not None:
-        _ensure_int("random_seed", random_seed)
-    if backend is None or not hasattr(backend, "run"):
-        raise TypeError("backend must provide a run(circuit, **kwargs) method.")
+    if optimizer_options is not None and not isinstance(optimizer_options, dict):
+        raise TypeError("optimizer_options must be a dict or None.")
+    #-----------------------------
+    
 
-    def _run_backend(circuit, shots):
-        run_kwargs = {"shots": shots}
-        if random_seed is not None:
-            run_kwargs["seed_simulator"] = random_seed
-        try:
-            return backend.run(circuit, **run_kwargs).result().get_counts()
-        except TypeError:
-            run_kwargs.pop("seed_simulator", None)
-            return backend.run(circuit, **run_kwargs).result().get_counts()
+    #Init the sampler if not provided as it is used in the cost function, and set the number of shots
+    if sampler is None:
+        backend = AerSimulator()
+        sampler = SamplerV2(mode=backend, options={"default_shots": number_shots})
+    sampler.options.default_shots = number_shots
 
-    def _get_expectation(ham_data):
+    def _objective_function(config):
+        config_index = ds.dit_string_to_integer(config, convention='L')
+        return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
 
-        def objective_function(config):
-            config_index = ds.dit_string_to_integer(config, convention='L')
-            return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
+    def _bind_qaoa_parameters(circuit,theta):
+        """
+        Bind the QAOA circuit parameters to specific values of beta and gamma
+        """
 
-        def compute_expectation(counts):
-            weighted_sum = 0
+        beta_parameters = circuit.metadata["beta_parameters"]
+        gamma_parameters = circuit.metadata["gamma_parameters"]
 
-            for bitstring, shot_count in counts.items():
-                objective_value = objective_function(bitstring)
-                weighted_sum += objective_value * shot_count
+        theta = np.asarray(theta, dtype=float).ravel()
+        if theta.size != 2 * number_layers:
+            raise ValueError("theta length must match 2 * number_layers.")
 
-            total_shots = max(sum(counts.values()), 1)
-            return weighted_sum / total_shots
+        beta_values = theta[:number_layers]
+        gamma_values = theta[number_layers:]
+        parameter_map = {
+            parameter: float(value)
+            for parameter, value in zip(beta_parameters, beta_values)
+        }
+        parameter_map.update(
+            {
+                parameter: float(value)
+                for parameter, value in zip(gamma_parameters, gamma_values)
+            }
+        )
+        return circuit.assign_parameters(parameter_map, inplace=False)
 
-        def run_qaoa_circuit(theta, ham_data):
-            circuit = _create_qaoa_circ(theta, ham_data, num_qubits=bit_string_length)
-            return _run_backend(circuit, number_shots)
+    def _get_count_from_backend(sampler, circuit):
+        job = sampler.run([circuit])
+        result = job.result()
+        return result[0].data.meas.get_counts()
 
-        def execute_circ(theta):
-            counts = run_qaoa_circuit(theta, ham_data)
-            return compute_expectation(counts)
+    def _compute_expectation(counts):
 
-        return execute_circ
+        weighted_sum = 0
 
-    def sample_best_state(circuit):
-        counts = _run_backend(circuit, number_shots)
+        for bitstring, shot_count in counts.items():
+            objective_value = _objective_function(bitstring)
+            weighted_sum += objective_value * shot_count
 
-        def objective_from_bitstring(bitstring):
-            config_index = ds.dit_string_to_integer(bitstring, convention='L')
-            return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
+        total_shots = max(sum(counts.values()), 1)
+        return weighted_sum / total_shots
 
-        return min(counts, key=objective_from_bitstring)
+    def cost_function(theta):
+        #Bind the parameter
+        binded_circuit = _bind_qaoa_parameters(qaoa_circuit, theta)
+
+        #Run the sampling on backend
+        counts = _get_count_from_backend(sampler, binded_circuit)
+
+        #Get the expectation value from counts
+        return _compute_expectation(counts)
+
+    def sample_best_state(qaoa_circuit, optimal_theta):
+        """
+        Return the best state sampled from QAOA with the optimal parameters.
+        """
+        binded_circuit = _bind_qaoa_parameters(qaoa_circuit, optimal_theta)
+        counts = _get_count_from_backend(sampler, binded_circuit)
+        return min(counts, key=_objective_function)
 
     number_parameters = 2 * number_layers
-    bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
-
     ham_data = _compute_hamiltonian(bit_constraints,marginals, bit_string_length=bit_string_length)
-    expectation = _get_expectation(ham_data)
-    res = sk_opt.minimize(expectation, x0=np.ones(number_parameters), bounds=bounds, method=method)
+    qaoa_circuit = _create_qaoa_circ(
+                        ham_data,
+                        num_qubits=bit_string_length,
+                        num_layers=number_layers,
+                    )
+    qaoa_circuit = transpile(qaoa_circuit, backend=sampler.backend())
 
-    qc_res = _create_qaoa_circ(res.x,ham_data, num_qubits=bit_string_length)
-    best_conf = sample_best_state(qc_res)
+
+    bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
+    res = sk_opt.minimize(
+        cost_function,
+        x0=np.ones(number_parameters),
+        bounds=bounds,
+        method=method,
+        options=dict(optimizer_options or {}),
+    )
+
+    optimal_theta = res.x
+    best_conf = sample_best_state(qaoa_circuit, optimal_theta)
+
     return ds.dit_string_to_integer(best_conf, convention='L')

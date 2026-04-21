@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 from qiskit import QuantumCircuit
+from qiskit.circuit import Parameter, ParameterVector
 from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 def compute_hamiltonian(constraints_sketch, marginals, bit_string_length=None):
@@ -134,36 +135,44 @@ def compute_hamiltonian(constraints_sketch, marginals, bit_string_length=None):
 
     return {term: coef for term, coef in coeffs.items() if not np.isclose(coef, 0.0)}
 
-def create_qaoa_circ(theta, ham_data, num_qubits):
+def create_qaoa_circ(ham_data, num_qubits, num_layers=1):
     """
-    Create a QAOA circuit for a given Hamiltonian and parameters.
+    Create a parameterized QAOA circuit for a given Hamiltonian.
 
     Parameters
     ----------
-    theta : list of float
-        The list of QAOA parameters, where the first half corresponds to beta angles and the second half corresponds to gamma angles.
     ham_data : dict
         The Hamiltonian data, where keys are tuples of qubit indices and values are the corresponding coefficients.
     num_qubits : int
         The number of qubits in the circuit.
+    num_layers : int, optional
+        The number of QAOA layers. The default is 1.
 
     Returns
     -------
     QuantumCircuit
-        The constructed QAOA circuit.
+        The constructed QAOA circuit. For a single layer, the circuit contains
+        parameters named ``beta`` and ``gamma`` so values can be bound with
+        ``qc.assign_parameters({gamma: g, beta: b})``.
     """
-    _ensure_iterable("theta", theta)
     if not isinstance(ham_data, dict):
         raise TypeError("ham_data must be a dict mapping Z-terms to coefficients.")
     num_qubits = _ensure_int("num_qubits", num_qubits, min_value=1)
-    if len(theta) % 2 != 0:
-        raise ValueError("theta length must be even (betas + gammas).")
-
-    num_layers = len(theta) // 2
+    num_layers = _ensure_int("num_layers", num_layers, min_value=1)
     circuit = QuantumCircuit(num_qubits)
 
-    beta_angles = theta[:num_layers]
-    gamma_angles = theta[num_layers:]
+    if num_layers == 1:
+        beta_parameters = [Parameter("beta")]
+        gamma_parameters = [Parameter("gamma")]
+    else:
+        beta_parameters = list(ParameterVector("beta", num_layers))
+        gamma_parameters = list(ParameterVector("gamma", num_layers))
+
+    circuit.metadata = {
+        **(circuit.metadata or {}),
+        "beta_parameters": tuple(beta_parameters),
+        "gamma_parameters": tuple(gamma_parameters),
+    }
 
     def apply_z_term(qubits, angle):
         for left, right in zip(qubits[:-1], qubits[1:]):
@@ -177,13 +186,13 @@ def create_qaoa_circ(theta, ham_data, num_qubits):
 
     for layer in range(num_layers):
         for qubit in range(num_qubits):
-            circuit.rx(2 * beta_angles[layer], qubit)
+            circuit.rx(2 * beta_parameters[layer], qubit)
 
         for z_term_qubits, coeff in ham_data.items():
             if not z_term_qubits or np.isclose(coeff, 0.0):
                 continue
             qubits = list(z_term_qubits)
-            apply_z_term(qubits, 2 * gamma_angles[layer] * coeff)
+            apply_z_term(qubits, 2 * gamma_parameters[layer] * coeff)
 
     circuit.measure_all()
     return circuit

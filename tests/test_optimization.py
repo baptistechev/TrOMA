@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from troma import bind_optimizer, get_optimizer, optimize
+from troma.optimization._quantum_map import create_qaoa_circ
 from troma.optimization import (
     list_optimizers,
     brute_force_max,
@@ -30,6 +31,10 @@ def _nn_setup(n=3, k=2, d=2):
     # f([0,0,0])=1 → marginals = [1,0,0,0,1,0,0,0]
     marginals = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
     return constraints, sketch, marginals
+
+
+def _parameter_by_name(circuit, name: str):
+    return next(parameter for parameter in circuit.parameters if parameter.name == name)
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +64,38 @@ class TestListOptimizers:
 
     def test_contains_digital_annealing(self):
         assert "digital_annealing" in list_optimizers()
+
+
+class TestCreateQaoaCircuit:
+    def test_single_layer_circuit_uses_named_parameters(self):
+        qc = create_qaoa_circ({(0,): 1.0, (0, 1): -0.5}, num_qubits=2)
+
+        beta = _parameter_by_name(qc, "beta")
+        gamma = _parameter_by_name(qc, "gamma")
+        bound_qc = qc.assign_parameters({gamma: 0.3, beta: 0.1}, inplace=False)
+
+        assert {parameter.name for parameter in qc.parameters} == {"beta", "gamma"}
+        assert len(bound_qc.parameters) == 0
+
+    def test_multi_layer_circuit_exposes_parameter_vectors(self):
+        qc = create_qaoa_circ({(0,): 1.0}, num_qubits=1, num_layers=2)
+        bound_qc = qc.assign_parameters(
+            {
+                _parameter_by_name(qc, "beta[0]"): 0.1,
+                _parameter_by_name(qc, "beta[1]"): 0.2,
+                _parameter_by_name(qc, "gamma[0]"): 0.3,
+                _parameter_by_name(qc, "gamma[1]"): 0.4,
+            },
+            inplace=False,
+        )
+
+        assert {parameter.name for parameter in qc.parameters} == {
+            "beta[0]",
+            "beta[1]",
+            "gamma[0]",
+            "gamma[1]",
+        }
+        assert len(bound_qc.parameters) == 0
 
 
 # ---------------------------------------------------------------------------
