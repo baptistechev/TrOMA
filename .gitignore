@@ -31,5 +31,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+#docs
+docs/_build/
+
 #Others
 examples/experiment*
