@@ -3,12 +3,13 @@ from qiskit import transpile
 from ._quantum_map import compute_hamiltonian, create_qaoa_circ
 
 
-# M4 model coefficients fitted on 60 ibm_marrakesh experiments (5-fold CV R²=0.768).
+# M4 model coefficients fitted on 140 ibm_marrakesh experiments.
 # usage_estimation (quantum seconds) = _A0 + _A1*duration_µs + _A2*shots + _A3*duration_µs*shots
-_A0 = 1.13667386e+00
-_A1 = 7.09096690e-02
-_A2 = 3.92205341e-04
-_A3 = -1.03034768e-05
+# 5-fold CV: R²=0.841, MAE=0.239 s
+_A0 = 1.541374
+_A1 = 0.020265
+_A2 = 0.000150
+_A3 = 0.000018
 
 
 def estimate_matching_pursuit_qpu_cost(
@@ -21,8 +22,8 @@ def estimate_matching_pursuit_qpu_cost(
 ) -> dict:
     """Estimate the total QPU time for a QAOA-based matching-pursuit run.
 
-    Per-circuit QPU cost is predicted by a linear model (M4) fitted on 60
-    ibm_marrakesh experiments (5-fold CV R²=0.768, MAE=0.16 s):
+    Per-circuit QPU cost is predicted by a linear model (M4) fitted on 140
+    ibm_marrakesh experiments (5-fold CV R²=0.841, MAE=0.239 s):
 
         usage_estimation = A0 + A1·duration_µs + A2·shots + A3·duration_µs·shots
 
@@ -76,6 +77,7 @@ def estimate_matching_pursuit_qpu_cost(
     duration_us = transpiled.estimate_duration(target=backend.target, unit="µ")
     circuits_per_qaoa_run = expected_objective_evaluations + 1
     seconds_per_circuit = round(_A0 + _A1 * duration_us + _A2 * number_shots + _A3 * duration_us * number_shots)
+    seconds_per_circuit = max(0.0, float(seconds_per_circuit))
     qaoa_run_seconds = seconds_per_circuit * circuits_per_qaoa_run
     total_seconds = qaoa_run_seconds * matching_pursuit_iterations
 
