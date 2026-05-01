@@ -6,6 +6,7 @@ import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
+from qiskit.providers.fake_provider import GenericBackendV2
 
 from ..sketchs import abstract as ab
 from .. import data_structure as ds
@@ -104,11 +105,22 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     #-----------------------------
     
 
-    #Init the sampler if not provided as it is used in the cost function, and set the number of shots
+    # Init the sampler if not provided and set the number of shots.
+    # AerSimulator defaults may expose a limited target size depending on Qiskit version,
+    # so create a simulator target sized to the problem by default.
     if sampler is None:
-        backend = AerSimulator()
+        sim_target = GenericBackendV2(num_qubits=bit_string_length)
+        backend = AerSimulator.from_backend(sim_target)
         sampler = SamplerV2(mode=backend, options={"default_shots": number_shots})
     sampler.options.default_shots = number_shots
+
+    backend = sampler.backend()
+    backend_qubits = getattr(backend, "num_qubits", None)
+    if isinstance(backend_qubits, int) and backend_qubits < bit_string_length:
+        raise ValueError(
+            f"Backend provides {backend_qubits} qubits, but bit_string_length={bit_string_length}. "
+            "Use a backend/simulator with enough qubits."
+        )
 
     def _objective_function(config):
         config_index = ds.dit_string_to_integer(config, convention='L')
@@ -181,7 +193,7 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
                         num_qubits=bit_string_length,
                         num_layers=number_layers,
                     )
-    qaoa_circuit = transpile(qaoa_circuit, backend=sampler.backend())
+    qaoa_circuit = transpile(qaoa_circuit, backend=backend)
 
 
     bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
