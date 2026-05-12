@@ -185,14 +185,15 @@ def create_qaoa_circ(ham_data, num_qubits, num_layers=1):
         circuit.h(qubit)
 
     for layer in range(num_layers):
-        for qubit in range(num_qubits):
-            circuit.rx(2 * beta_parameters[layer], qubit)
 
         for z_term_qubits, coeff in ham_data.items():
             if not z_term_qubits or np.isclose(coeff, 0.0):
                 continue
             qubits = list(z_term_qubits)
             apply_z_term(qubits, 2 * gamma_parameters[layer] * coeff)
+
+        for qubit in range(num_qubits):
+            circuit.rx(2 * beta_parameters[layer], qubit)
 
     circuit.measure_all()
     return circuit
