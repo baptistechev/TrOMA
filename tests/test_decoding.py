@@ -9,7 +9,7 @@ from troma.decoding import (
     matchingpursuit_explicit,
     matchingpursuit_abstract,
 )
-from troma.decoding.matching_pursuit import FunctionMatchingPursuit
+from troma.matching_pursuit import FunctionMatchingPursuit
 from troma.sketchs import (
     nearest_neighbors_interactions_sketch,
     constraints_for_nearest_neighbors_interactions,
@@ -112,22 +112,9 @@ class TestBindMatchingPursuit:
 # ---------------------------------------------------------------------------
 
 class TestMatchingPursuitConvenience:
-    def test_explicit_returns_ndarray(self):
-        marginals, sketch = _explicit_setup()
-        result = matching_pursuit("explicit", marginals, sketch, 1)
-        assert isinstance(result, np.ndarray)
-
-    def test_abstract_returns_ndarray(self):
-        marginals, constraints = _abstract_setup()
-        result = matching_pursuit(
-            "abstract", marginals, constraints, 3, iteration_number=1,
-            interaction_size=2, dit_dimension=2,
-        )
-        assert isinstance(result, np.ndarray)
-
-    def test_invalid_backend_raises(self):
-        with pytest.raises(ValueError):
-            matching_pursuit("no_such_backend", [], [], 1)
+    def test_requires_problem_sketch_instance(self):
+        with pytest.raises(TypeError):
+            matching_pursuit("abstract", iteration_number=1)
 
 
 # ---------------------------------------------------------------------------

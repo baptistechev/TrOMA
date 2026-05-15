@@ -8,7 +8,7 @@ from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
 
 from ..sketchs import abstract as ab
-from .. import data_structure as ds
+from ..core import data_structure as ds
 from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
 from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
@@ -111,6 +111,8 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     sampler.options.default_shots = number_shots
 
     def _objective_function(config):
+        if isinstance(config, str):
+            config = [int(bit) for bit in config]
         config_index = ds.dit_string_to_integer(config, convention='L')
         return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
 
@@ -196,4 +198,4 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
     optimal_theta = res.x
     best_conf = sample_best_state(qaoa_circuit, optimal_theta)
 
-    return ds.dit_string_to_integer(best_conf, convention='L')
+    return ds.dit_string_to_integer([int(bit) for bit in best_conf], convention='L')

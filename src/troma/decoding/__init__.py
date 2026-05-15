@@ -1,5 +1,5 @@
 from .decoding_proced import matchingpursuit_abstract, matchingpursuit_explicit
-from .matching_pursuit import (
+from ..matching_pursuit import (
     bind_matching_pursuit,
     get_matching_pursuit,
     list_matching_pursuits,

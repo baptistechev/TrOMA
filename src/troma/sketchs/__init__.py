@@ -1,5 +1,3 @@
-from .sketch import Sketch, ConstraintSketch, ExplicitSketch
-
 from .abstract import (
 	compute_marginal as constraint_compute_marginal,
 	constraints_for_nearest_neighbors_interactions,
@@ -14,9 +12,6 @@ from .explicit import (
 )
 
 __all__ = [
-	"Sketch",
-	"ConstraintSketch",
-	"ExplicitSketch",
 	"constraint_compute_marginal",
 	"constraints_for_nearest_neighbors_interactions",
 	"constraints_for_all_interactions",

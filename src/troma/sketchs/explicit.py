@@ -2,7 +2,7 @@ import numpy as np
 import itertools
 from numbers import Integral
 
-from .. import data_structure as ds
+from ..core import data_structure as ds
 
 def compute_marginal(full_sprectrum_values, sketch_function):
     """

@@ -1,6 +1,6 @@
 import numpy as np
 
-from troma.embedding import (
+from troma.core.embedding import (
     reverse_spectrum_restriction,
     spectrum_embedding,
     spectrum_restriction,

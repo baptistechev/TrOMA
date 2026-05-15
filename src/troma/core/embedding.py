@@ -1,6 +1,6 @@
 import numpy as np
 
-from ._validation import (
+from .._validation import (
     ensure_callable,
     ensure_iterable,
     ensure_int,
@@ -19,6 +19,10 @@ def _validate_spectrum_vectors(spectrum, name):
             for value in vector:
                 ensure_int(f"{name} value", value)
     return vectors
+
+
+def _to_dit_string(vector):
+    return np.array([int(v) for v in vector])
 
 
 def _validate_dit_restrictions(dit_restrictions):
@@ -113,7 +117,7 @@ def spectrum_restriction(spectrum_dit, dit_restrictions, dit_value_restrictions)
         for i, val in enumerate(dit_value_restrictions):
             for s in new_spectrum_dit:
                 s[s == val] = i
-    return new_spectrum_dit
+    return [_to_dit_string(s) for s in new_spectrum_dit]
 
 def spectrum_embedding(spectrum_dit, additional_dits, dimension_mapping, additional_dits_val=0):
     """
@@ -159,7 +163,7 @@ def spectrum_embedding(spectrum_dit, additional_dits, dimension_mapping, additio
             for s in new_spectrum_dit:
                 s[s == original_val] = new_val
     
-    return new_spectrum_dit
+    return [_to_dit_string(s) for s in new_spectrum_dit]
 
 def reverse_spectrum_restriction(spectrum_dits, original_size, dit_restrictions, dit_value_restrictions, additional_dits_val=0):
     """

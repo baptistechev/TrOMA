@@ -50,7 +50,7 @@ def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, opt
 
     #Matching Pursuit, initialization
     r = copy.deepcopy(marginals)
-    coeffs = {}
+    selections = []
 
     for _ in range(iteration_number):
 
@@ -68,9 +68,9 @@ def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, opt
 
         # Update residual
         r -= alpha * At
-        coeffs[t] = coeffs.get(t, 0.0) + alpha
+        selections.append((t, alpha))
 
-    return np.array([[idx, coeff] for idx, coeff in coeffs.items()])
+    return np.array([[idx, coeff] for idx, coeff in selections])
 
 
 def matchingpursuit_abstract(
@@ -133,7 +133,7 @@ def matchingpursuit_abstract(
 
     #Matching Pursuit, initialization
     r = copy.deepcopy(marginals)
-    coeffs = {}
+    selections = []
 
     for _ in range(iteration_number):
 
@@ -159,6 +159,6 @@ def matchingpursuit_abstract(
 
         # Update residual
         r -= alpha * At
-        coeffs[t] = coeffs.get(t, 0.0) + alpha
+        selections.append((t, alpha))
 
-    return np.array([[idx, coeff] for idx, coeff in coeffs.items()])
+    return np.array([[idx, coeff] for idx, coeff in selections])

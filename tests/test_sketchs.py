@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from troma import ConstraintSketch, ExplicitSketch
+from troma import ConstraintSketchMap, ExplicitSketchMap
 from troma.sketchs import (
     constraint_compute_marginal,
     constraints_for_all_interactions,

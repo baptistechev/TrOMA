@@ -2,7 +2,7 @@ import itertools
 from numbers import Integral, Real
 import numpy as np
 
-from ..data_structure import integer_to_dit_string
+from ..core.data_structure import integer_to_dit_string
 
 def _validate_positive_int(name, value, *, min_value=1):
     if not isinstance(value, Integral) or isinstance(value, bool):

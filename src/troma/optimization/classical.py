@@ -4,7 +4,7 @@ import scipy.optimize as scipy_opt
 from numbers import Real
 
 from ..sketchs import abstract as ab
-from .. import data_structure as ds
+from ..core import data_structure as ds
 from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
 
 def brute_force_max(marginals,sketch):
@@ -96,7 +96,7 @@ def spin_chain_nn_max(marginals, dit_string_length, interaction_size=2, dit_dime
     best_energy_by_state = {state: 0.0 for state in states}
     # For ties on energy, keep the smallest global prefix index.
     best_index_by_state = {
-        state: ds.dit_string_to_integer(state, dit_dimension=dit_dimension)
+        state: ds.dit_string_to_integer(list(state), dit_dimension=dit_dimension)
         for state in states
     }
     # Backpointers per window to reconstruct the optimal chain.

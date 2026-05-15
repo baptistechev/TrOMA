@@ -1,10 +1,9 @@
 import numpy as np
 
-from . import data_structure as ds
-from . import sketchs
-from .decoding.matching_pursuit import matching_pursuit
-from .optimization.optimizer import get_optimizer
-from ._validation import ensure_callable as _ensure_callable, ensure_int as _ensure_int
+from ..core import data_structure as ds
+from ..optimization.optimizer import get_optimizer
+from .._validation import ensure_callable as _ensure_callable, ensure_int as _ensure_int
+from .structure import Restriction, Sample
 from .embedding import reverse_spectrum_restriction
 
 def _basic_sampling(number_samples, dit_string_length, dit_dimension):
@@ -14,11 +13,9 @@ def _basic_sampling(number_samples, dit_string_length, dit_dimension):
     sample_dit_strings = [ds.integer_to_dit_string(int(index), dit_string_length, dit_dimension) for index in sample_indexes]
     return sample_indexes,sample_dit_strings
 
-def mcco_modeling(objective_function, number_samples, dit_string_length, threshold_parameter = None, dit_dimension=2, sampling_function=_basic_sampling, sampling_args=None):
+def objective_sampling(objective_function, number_samples, dit_string_length, threshold_parameter = None, dit_dimension=2, sampling_function=None, sampling_args=None):
     """
-    Create a MCCO model of the objective function seen as a blackbox.
-    The model is created by sampling the objective function on a random subset of the search space, and then applying a threshold to the sampled values. 
-    The model defined an unconstrained optimization problem, which can be solved by a matching pursuit decoder.
+    Sample the objective function on a random subset of the search space, and then applying a threshold to the sampled values. 
 
     Parameters
     ----------
@@ -39,13 +36,8 @@ def mcco_modeling(objective_function, number_samples, dit_string_length, thresho
     
     Returns
     -------
-    tuple
-        sample_indexes : list of int
-            List of the indexes of the sampled configurations.
-        sample_values : list of float
-            List of the values of the objective function on the sampled configurations.
-        sample_dit_strings : list of list of int
-            List of the sampled configurations as dit strings.
+    Sample
+        Sample object containing indexes, values, and dit_strings.
     """
     _ensure_callable("objective_function", objective_function)
     dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
@@ -84,13 +76,24 @@ def mcco_modeling(objective_function, number_samples, dit_string_length, thresho
     #Return only the non-zero samples, sorted by index
     non_zero = sorted([(int(i), s.tolist(), int(v)) for i, s, v in zip(sample_indexes, sample_dit_strings, sample_values) if v != 0])
     sample_indexes, sample_dit_strings, sample_values = zip(*non_zero) if non_zero else ([], [], [])
-    return sample_indexes, sample_values, sample_dit_strings
+    return Sample(
+        indexes=list(sample_indexes),
+        values=list(sample_values),
+        dit_strings=list(sample_dit_strings),
+    )
 
-def restricted_mcco_modeling(objective_function, number_samples, dit_string_length, threshold_parameter = None, dit_dimension=2, dit_restrictions=None, dit_value_restrictions=None, additional_dits_val=0, sampling_function=_basic_sampling, sampling_args=None):
+def restricted_objective_sampling(
+    objective_function,
+    number_samples,
+    dit_string_length,
+    threshold_parameter = None,
+    dit_dimension=2,
+    restriction: Restriction | None = None,
+    sampling_function=_basic_sampling,
+    sampling_args=None,
+):
     """
-    Create a MCCO model of the objective function seen as a blackbox.
-    The model is created by sampling the objective function on a random subset of the search space, and then applying a threshold to the sampled values. 
-    The model defined an unconstrained optimization problem, which can be solved by a matching pursuit decoder.
+    Sample the objective function on a random subset of the search space, and then applying a threshold to the sampled values. 
 
     Parameters
     ----------
@@ -104,12 +107,9 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
         Threshold applied to the sampled values. If "Auto", the threshold is set to the 90th percentile of the non-zero sampled values.
     dit_dimension : int, optional
         Dimension of the dits. Default is 2.
-    dit_restrictions : list of int, optional
-        List of the positions of the dits where we restrict the sampling. If None, no restriction is applied.
-    dit_value_restrictions : list of list of int, optional
-        List of the allowed dits values to sample from. If None, no restriction is applied.
-    additional_dits_val : int, optional
-        Value to assign to the trivial dits when calling the objective function. Default is 0.
+    restriction : Restriction | None, optional
+        Restriction object holding dit_restrictions, dit_value_restrictions and
+        additional_dits_val. If None, no restriction is applied.
     sampling_function : callable, optional
         Function used for sampling the configurations. It should take number_samples, dit_string_length, dit_dimension as positional arguments and return a list of samples dit_strings. Default is a uniform sampling function.
     sampling_args : dict, optional
@@ -117,13 +117,8 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
     
     Returns
     -------
-    tuple
-        sample_indexes : list of int
-            List of the indexes of the sampled configurations.
-        sample_values : list of float
-            List of the values of the objective function on the sampled configurations.
-        sample_dit_strings : list of list of int
-            List of the sampled configurations as dit strings.
+    Sample
+        Sample object containing indexes, values, and dit_strings.
     """
     _ensure_callable("objective_function", objective_function)
     dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
@@ -141,12 +136,26 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
     if sampling_args is not None and not isinstance(sampling_args, dict):
         raise TypeError("sampling_args must be a dict or None.")
 
-    if dit_restrictions is None and dit_value_restrictions is None:
-        return mcco_modeling(objective_function, number_samples, dit_string_length, threshold_parameter, dit_dimension, sampling_function, sampling_args)
+    if restriction is None:
+        restriction = Restriction()
+
+    if (
+        restriction.dit_restrictions is None
+        and restriction.dit_value_restrictions is None
+    ):
+        return objective_sampling(objective_function, number_samples, dit_string_length, threshold_parameter, dit_dimension, sampling_function, sampling_args)
 
     #Compute the size of the restricted space
-    restricted_space_size = len(dit_restrictions) if dit_restrictions is not None else dit_string_length
-    restricted_space_dimension = len(dit_value_restrictions) if dit_value_restrictions is not None else dit_dimension
+    restricted_space_size = (
+        len(restriction.dit_restrictions)
+        if restriction.dit_restrictions is not None
+        else dit_string_length
+    )
+    restricted_space_dimension = (
+        len(restriction.dit_value_restrictions)
+        if restriction.dit_value_restrictions is not None
+        else dit_dimension
+    )
     
     #Sample from the restricted space
     if sampling_args is None:
@@ -157,9 +166,9 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
     sample_dit_strings = reverse_spectrum_restriction(
         sample_dit_strings_rest,
         original_size=dit_string_length,
-        dit_restrictions=dit_restrictions,
-        dit_value_restrictions=dit_value_restrictions,
-        additional_dits_val=additional_dits_val
+        dit_restrictions=restriction.dit_restrictions,
+        dit_value_restrictions=restriction.dit_value_restrictions,
+        additional_dits_val=restriction.additional_dits_val,
     )
 
     #Compute the objective function values on the sampled configurations
@@ -178,4 +187,8 @@ def restricted_mcco_modeling(objective_function, number_samples, dit_string_leng
     #Return only the non-zero samples, sorted by index
     non_zero = sorted([(int(i), s.tolist(), int(v)) for i, s, v in zip(sample_indexes_rest, sample_dit_strings_rest, sample_values) if v != 0])
     sample_indexes_rest, sample_dit_strings_rest, sample_values = zip(*non_zero) if non_zero else ([], [], [])
-    return sample_indexes_rest, sample_values, sample_dit_strings_rest
+    return Sample(
+        indexes=list(sample_indexes_rest),
+        values=list(sample_values),
+        dit_strings=list(sample_dit_strings_rest),
+    )
