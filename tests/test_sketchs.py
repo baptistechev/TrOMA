@@ -328,105 +328,92 @@ class TestExplicitComputeMarginal:
 
 
 # ---------------------------------------------------------------------------
-# ConstraintSketch (class API)
+# ConstraintSketchMap (class API)
 # ---------------------------------------------------------------------------
 
-class TestConstraintSketch:
+class TestConstraintSketchMap:
     def test_build_nn_sketch_returns_list_of_dicts(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        assert isinstance(sketch, list)
-        assert all(isinstance(c, dict) for c in sketch)
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        assert isinstance(sm.map, list)
+        assert all(isinstance(c, dict) for c in sm.map)
 
     def test_build_nn_sketch_count(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        assert len(sketch) == 8
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        assert len(sm.map) == 8
 
     def test_build_all_sketch_count(self):
-        sketch = ConstraintSketch.build_all_interactions_sketch(3, 2, 2)
-        assert len(sketch) == 12
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="all_interactions")
+        assert len(sm.map) == 12
 
     def test_compute_marginal_tuple_input(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        # Include both 0 and 1 values so that dit_dimension=2 is correctly inferred
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
         input_dits = [[0, 0, 0], [1, 1, 1]]
         values = [1.0, 0.0]
-        result = ConstraintSketch.compute_marginal((input_dits, values), sketch)
+        result = sm.compute_marginal((input_dits, values))
         assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
 
-    def test_compute_marginals_3_arg_form(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
+    def test_compute_marginal_two_arg_form(self):
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
         input_dits = [[0, 0, 0], [1, 1, 1]]
         values = [1.0, 0.0]
-        result = ConstraintSketch.compute_marginals(input_dits, values, sketch)
+        result = sm.compute_marginal(input_dits, values)
         assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
 
-    def test_compute_marginals_2_arg_form(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        input_dits = [[0, 0, 0], [1, 1, 1]]
-        values = [1.0, 0.0]
-        result = ConstraintSketch.compute_marginals((input_dits, values), sketch)
-        assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
-
-    def test_reconstruct_column_via_class(self):
-        sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        col = ConstraintSketch.reconstruct_structured_matrix_column(0, sketch, 3, 2)
+    def test_reconstruct_column(self):
+        sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        col = sm.reconstruct_structured_matrix_column(0)
         assert col.tolist() == [1, 0, 0, 0, 1, 0, 0, 0]
 
 
 # ---------------------------------------------------------------------------
-# ExplicitSketch (class API)
+# ExplicitSketchMap (class API)
 # ---------------------------------------------------------------------------
 
-class TestExplicitSketch:
+class TestExplicitSketchMap:
     def test_build_nn_sketch_shape(self):
-        M = ExplicitSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        assert M.shape == (8, 8)
+        sm = ExplicitSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        assert sm.map.shape == (8, 8)
 
     def test_build_all_sketch_shape(self):
-        M = ExplicitSketch.build_all_interactions_sketch(3, 2, 2)
-        assert M.shape == (12, 8)
+        sm = ExplicitSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="all_interactions")
+        assert sm.map.shape == (12, 8)
 
     def test_build_returns_ndarray(self):
-        M = ExplicitSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        assert isinstance(M, np.ndarray)
+        sm = ExplicitSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        assert isinstance(sm.map, np.ndarray)
 
     def test_compute_marginal_single_nonzero(self):
-        M = ExplicitSketch.build_nearest_neighbors_sketch(3, 2, 2)
+        sm = ExplicitSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
         full = [0.0] * 8
         full[0] = 1.0
-        result = ExplicitSketch.compute_marginal(full, M)
+        result = sm.compute_marginal(full)
         assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
 
-    def test_compute_marginals_alias(self):
-        M = ExplicitSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        full = [0.0] * 8
-        full[0] = 1.0
-        r1 = ExplicitSketch.compute_marginal(full, M)
-        r2 = ExplicitSketch.compute_marginals(full, M)
-        assert r1 == pytest.approx(r2)
-
     def test_random_sketch_shape(self):
-        M = ExplicitSketch.random_sketch(3, 5, dit_dimension=2, random_state=0)
-        assert M.shape == (5, 8)
+        sm = ExplicitSketchMap(sketch_length=3, sketch_dimension=2)
+        sm.random_sketch(5, random_state=0)
+        assert sm.map.shape == (5, 8)
 
     def test_random_sketch_reproducible(self):
-        M1 = ExplicitSketch.random_sketch(3, 5, random_state=7)
-        M2 = ExplicitSketch.random_sketch(3, 5, random_state=7)
-        np.testing.assert_array_equal(np.asarray(M1), np.asarray(M2))
+        sm1 = ExplicitSketchMap(sketch_length=3, sketch_dimension=2)
+        sm1.random_sketch(5, random_state=7)
+        sm2 = ExplicitSketchMap(sketch_length=3, sketch_dimension=2)
+        sm2.random_sketch(5, random_state=7)
+        np.testing.assert_array_equal(sm1.map, sm2.map)
 
     def test_nn_and_constraint_marginals_agree(self):
         """Explicit and constraint sketches should give the same marginals."""
         input_dits = [[0, 0, 0], [0, 1, 0], [1, 0, 1]]
         values = [3.0, 1.0, 2.0]
 
-        c_sketch = ConstraintSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        c_marginals = ConstraintSketch.compute_marginal((input_dits, values), c_sketch)
+        csm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        c_marginals = csm.compute_marginal(input_dits, values)
 
         full = [0.0] * 8
         for dit_str, v in zip(input_dits, values):
             idx = sum(d * (2 ** (2 - i)) for i, d in enumerate(dit_str))
             full[idx] = v
-        e_sketch = ExplicitSketch.build_nearest_neighbors_sketch(3, 2, 2)
-        e_marginals = ExplicitSketch.compute_marginal(full, e_sketch)
+        esm = ExplicitSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
+        e_marginals = esm.compute_marginal(full)
 
         assert c_marginals == pytest.approx(e_marginals, abs=1e-10)

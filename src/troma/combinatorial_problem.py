@@ -75,7 +75,7 @@ class CombinatorialProblem:
         sketch_values = constraints.compute_marginal(self.sample.dit_strings, self.sample.values)
         return CombinatorialProblemSketch(problem=self, sketch_map=constraints, sketch_values=sketch_values)
 
-    @sketching.register
+    @sketching.register(str)
     def _(self, constraints: SketchType, interaction_size: int | None = None):
         """Sketch from a SketchType string, building the appropriate ConstraintSketchMap.
         
@@ -201,8 +201,8 @@ class RestrictedProblem(CombinatorialProblem):
         sketch = constraints.compute_marginal(self.sample.dit_strings, self.sample.values)
         return RestrictedProblemSketch(problem=self, sketch_map=constraints, sketch=sketch)
 
-    @sketching.register
-    def _(self, constraints: str | SketchType, interaction_size: int | None = None):
+    @sketching.register(str)
+    def _(self, constraints: SketchType, interaction_size: int | None = None):
         """
         """
 

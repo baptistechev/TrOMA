@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import numbers
 from collections.abc import Iterable
 
 import numpy as np
+
+
+def _ensure_int(name: str, value) -> int:
+    if not isinstance(value, numbers.Integral) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an integer.")
+    return int(value)
 
 
 def integer_to_dit_string(
@@ -30,6 +37,9 @@ def integer_to_dit_string(
     np.ndarray
         Encoded dit string as an integer numpy array.
     """
+    integer = _ensure_int("integer", integer)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension)
+    dit_string_length = _ensure_int("dit_string_length", dit_string_length)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
     if dit_string_length < 0:
@@ -88,7 +98,11 @@ def dit_string_to_integer(
         else:
             values = [int(ch) for ch in dit_string]
     else:
-        values = [int(v) for v in dit_string]
+        raw = list(dit_string)
+        for v in raw:
+            if not isinstance(v, numbers.Integral) or isinstance(v, bool):
+                raise TypeError("Each value in dit_string must be an integer.")
+        values = [int(v) for v in raw]
 
     for value in values:
         if value < 0 or value > dit_dimension - 1:
@@ -163,12 +177,18 @@ def create_cylinder_set_indicator(
     list[list[list[int]]]
         List of factorized cylinder indicators, one per fixed-position assignment.
     """
+    set_size = _ensure_int("set_size", set_size)
+    dit_dimension = _ensure_int("dit_dimension", dit_dimension)
     if set_size < 0:
         raise ValueError("set_size must be >= 0.")
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
 
-    fixed_positions = [int(pos) for pos in fixed_dit_positions]
+    fixed_positions_raw = list(fixed_dit_positions)
+    for pos in fixed_positions_raw:
+        if not isinstance(pos, numbers.Integral) or isinstance(pos, bool):
+            raise TypeError("Each index in fixed_dit_positions must be an integer.")
+    fixed_positions = [int(pos) for pos in fixed_positions_raw]
     if len(set(fixed_positions)) != len(fixed_positions):
         raise ValueError("fixed_dit_positions must contain unique indices.")
 
