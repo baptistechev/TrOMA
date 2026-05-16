@@ -82,7 +82,7 @@ from typing import Any
 
 import numpy as np
 
-from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_instance
+from .._validation import _Validator
 
 
 class DitString:
@@ -106,9 +106,9 @@ class DitString:
         length: int | None = None,
         dimension: int = 2,
     ) -> None:
-        values = [ensure_int("dit_string element", v) for v in dit_string]
-        self.length: int = len(values) if length is None else ensure_int("length", length, min_value=0)
-        self.dimension: int = ensure_int("dimension", dimension, min_value=2)
+        values = [_Validator.ensure_int("dit_string element", v) for v in dit_string]
+        self.length: int = len(values) if length is None else _Validator.ensure_int("length", length, min_value=0)
+        self.dimension: int = _Validator.ensure_int("dimension", dimension, min_value=2)
         if length is not None and self.length != len(values):
             raise ValueError(
                 f"length ({length}) must match the number of values provided ({len(values)})."
@@ -171,9 +171,9 @@ class DitString:
         -------
         DitString
         """
-        integer = ensure_int("integer", integer, min_value=0)
-        length = ensure_int("length", length, min_value=0)
-        dimension = ensure_int("dimension", dimension, min_value=2)
+        integer = _Validator.ensure_int("integer", integer, min_value=0)
+        length = _Validator.ensure_int("length", length, min_value=0)
+        dimension = _Validator.ensure_int("dimension", dimension, min_value=2)
         if integer > 0 and length == 0:
             raise ValueError("length must be positive to encode a non-zero integer.")
         if length > 0 and integer >= dimension ** length:
@@ -269,9 +269,8 @@ class CylinderSet:
     __slots__ = ("vectors", "dimension", "length")
 
     def __init__(self, vectors: list[list[int]], dimension: int) -> None:
-        dimension = ensure_int("dimension", dimension, min_value=2)
-        if not isinstance(vectors, (list, tuple)):
-            raise TypeError("vectors must be a list of binary indicator vectors.")
+        dimension = _Validator.ensure_int("dimension", dimension, min_value=2)
+        _Validator.ensure_instance("vectors", vectors, (list, tuple))
         vecs = [list(v) for v in vectors]
         for i, vec in enumerate(vecs):
             if len(vec) != dimension:
@@ -323,10 +322,10 @@ class CylinderSet:
         >>> sets = CylinderSet.for_positions([1], set_size=3, dimension=2)
         >>> # Returns two sets: one with pos-1 fixed to 0, one with pos-1 fixed to 1.
         """
-        set_size = ensure_int("set_size", set_size, min_value=0)
-        dimension = ensure_int("dimension", dimension, min_value=2)
-        fixed_pos_list = [ensure_int("fixed position", p, min_value=0) for p in fixed_positions]
-        ensure_unique_items("fixed_positions", fixed_pos_list)
+        set_size = _Validator.ensure_int("set_size", set_size, min_value=0)
+        dimension = _Validator.ensure_int("dimension", dimension, min_value=2)
+        fixed_pos_list = [_Validator.ensure_int("fixed position", p, min_value=0) for p in fixed_positions]
+        _Validator.ensure_unique_items("fixed_positions", fixed_pos_list)
         for p in fixed_pos_list:
             if p >= set_size:
                 raise ValueError(
@@ -363,7 +362,7 @@ class CylinderSet:
         np.ndarray
             Full-space indicator vector of length ``dimension ** length``.
         """
-        ensure_str("convention", convention)
+        _Validator.ensure_str("convention", convention)
         if convention not in ("R", "L"):
             raise ValueError("convention must be 'R' or 'L'.")
         vecs = self.vectors[::-1] if convention == "L" else self.vectors
@@ -421,15 +420,13 @@ class Hamiltonian:
     num_qubits: int = 1
 
     def __post_init__(self) -> None:
-        self.num_qubits = ensure_int("num_qubits", self.num_qubits, min_value=1)
-        if not isinstance(self.terms, dict):
-            raise TypeError("terms must be a dict mapping tuple[int, ...] to float.")
+        self.num_qubits = _Validator.ensure_int("num_qubits", self.num_qubits, min_value=1)
+        _Validator.ensure_dict("terms", self.terms)
 
         validated_terms: dict[tuple[int, ...], float] = {}
         for raw_term, raw_coeff in self.terms.items():
-            if not isinstance(raw_term, tuple):
-                raise TypeError("Each Hamiltonian term key must be a tuple of qubit indices.")
-            term: tuple[int, ...] = tuple(ensure_int("qubit index", q, min_value=0) for q in raw_term)
+            _Validator.ensure_tuple("Hamiltonian term key", raw_term)
+            term: tuple[int, ...] = tuple(_Validator.ensure_int("qubit index", q, min_value=0) for q in raw_term)
             for q in term:
                 if q >= self.num_qubits:
                     raise ValueError(
@@ -447,7 +444,7 @@ class Hamiltonian:
         bit_string_length: int,
     ) -> "Hamiltonian":
         """Build a Hamiltonian from constraints and corresponding marginals."""
-        bit_string_length = ensure_int("bit_string_length", bit_string_length, min_value=1)
+        bit_string_length = _Validator.ensure_int("bit_string_length", bit_string_length, min_value=1)
         marginals = list(marginals)
         if len(constraints_sketch) != len(marginals):
             raise ValueError("constraints_sketch and marginals must have the same length.")
@@ -512,9 +509,8 @@ class Hamiltonian:
         from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
         from ..sketch_map import ConstraintSketchMap
 
-        ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
-        if not isinstance(problem_sketch.sketch_map, ConstraintSketchMap):
-            raise TypeError("problem_sketch.sketch_map must be a ConstraintSketchMap.")
+        _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+        _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
         if not problem_sketch.sketch_values:
             raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
 

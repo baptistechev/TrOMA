@@ -5,11 +5,11 @@ from typing import Any
 
 import numpy as np
 
-from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
+from ..problem_sketch import ProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ..sketch_map import ExplicitSketchMap
 from ..optimization import optimizer as optimizer_api
-from .._validation import ensure_instance, ensure_int, ensure_sequence
+from .._validation import _Validator
 
 
 def _column_vector_to_array(vec: Any) -> np.ndarray:
@@ -41,19 +41,16 @@ def matchingpursuit_explicit(
     np.ndarray
         2D array where each row is [column_index, coefficient].
     """
-    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
     sketch_map = problem_sketch.sketch_map
-    if not isinstance(sketch_map, ExplicitSketchMap):
-        raise TypeError("problem_sketch.sketch_map must be an ExplicitSketchMap for explicit matching pursuit.")
+    _Validator.ensure_instance("sketch_map", sketch_map, ExplicitSketchMap)
     marginals = problem_sketch.sketch_values
-    if marginals is None:
-        raise ValueError("problem_sketch.sketch_values must be defined before running matching pursuit.")
+    _Validator.ensure_not_none("marginals", marginals)
     sketch = sketch_map.map
     if not hasattr(sketch, "__getitem__"):
         raise TypeError("problem_sketch.sketch_map.map must be an indexable matrix-like object.")
-    iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
-    if step is not None and not isinstance(step, (int, float)):
-        raise TypeError("step must be a real number or None.")
+    iteration_number = _Validator.ensure_int("iteration_number", iteration_number, min_value=1)
+    _Validator.ensure_optional_real("step", step)
 
     if optimizer is None:
         optimizer = optimizer_api.get_optimizer("brute_force_max")
@@ -64,7 +61,8 @@ def matchingpursuit_explicit(
     selections = []
 
     for _ in range(iteration_number):
-        t = optimizer.optimize(r, sketch=sketch)
+        residue_sketch = problem_sketch.update_sketch(r)
+        t = optimizer.optimize(residue_sketch)
         At = _column_vector_to_array(sketch[:, t])
 
         if step is None:
@@ -104,28 +102,15 @@ def matchingpursuit_abstract(
     np.ndarray
         2D array where each row is [column_index, coefficient].
     """
-    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
     sketch_map = problem_sketch.sketch_map
-    if not isinstance(sketch_map, ConstraintSketchMap):
-        raise TypeError("problem_sketch.sketch_map must be a ConstraintSketchMap for abstract matching pursuit.")
+    _Validator.ensure_instance("sketch_map", sketch_map, ConstraintSketchMap)
     marginals = problem_sketch.sketch_values
-    if marginals is None:
-        raise ValueError("problem_sketch.sketch_values must be defined before running matching pursuit.")
-    dit_constraints = sketch_map.map
-    ensure_sequence("dit_constraints", dit_constraints)
+    _Validator.ensure_not_none("marginals", marginals)
+    _Validator.ensure_sequence("dit_constraints", sketch_map.map)
 
-    dit_string_length = problem_sketch.problem_size
-    dit_dimension = problem_sketch.problem_dimension
-    if isinstance(problem_sketch, RestrictedProblemSketch):
-        dit_string_length = problem_sketch.restricted_problem_size
-        dit_dimension = problem_sketch.restricted_problem_dimension
-
-    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
-    iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
-    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
-    interaction_size = sketch_map.interaction_size if sketch_map.interaction_size is not None else 2
-    if step is not None and not isinstance(step, (int, float)):
-        raise TypeError("step must be a real number or None.")
+    iteration_number = _Validator.ensure_int("iteration_number", iteration_number, min_value=1)
+    _Validator.ensure_optional_real("step", step)
 
     if optimizer is None:
         optimizer = optimizer_api.get_optimizer("spin_chain_nn_max")
@@ -136,15 +121,8 @@ def matchingpursuit_abstract(
     selections = []
 
     for _ in range(iteration_number):
-        t = optimizer.optimize(
-            r,
-            dit_constraints=dit_constraints,
-            dit_string_length=dit_string_length,
-            interaction_size=interaction_size,
-            dit_dimension=dit_dimension,
-            bit_constraints=dit_constraints,
-            bit_string_length=dit_string_length,
-        )
+        residue_sketch = problem_sketch.update_sketch(r)
+        t = optimizer.optimize(residue_sketch)
 
         At = sketch_map.reconstruct_structured_matrix_column(t)
 

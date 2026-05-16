@@ -8,7 +8,7 @@ from typing import Any, Callable
 import numpy as np
 from .core.structure import DitString, MatchingPursuitResults
 from .core.embedding import reverse_spectrum_restriction
-from ._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict, ensure_instance
+from ._validation import _Validator
 
 # Import for ProblemSketch support
 from .problem_sketch import ProblemSketch, RestrictedProblemSketch
@@ -82,10 +82,10 @@ class FunctionMatchingPursuit(MatchingPursuit):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        ensure_nonempty_str("name", name)
-        ensure_callable("function", function)
-        ensure_tuple("default_args", default_args)
-        ensure_optional_dict("default_kwargs", default_kwargs)
+        _Validator.ensure_nonempty_str("name", name)
+        _Validator.ensure_callable("function", function)
+        _Validator.ensure_tuple("default_args", default_args)
+        _Validator.ensure_optional_dict("default_kwargs", default_kwargs)
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -154,7 +154,7 @@ _MATCHING_PURSUIT_REGISTRY: dict[str, tuple[str, str]] = {
 
 
 def _load_module(module_name: str):
-    ensure_nonempty_str("module_name", module_name)
+    _Validator.ensure_nonempty_str("module_name", module_name)
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -164,7 +164,7 @@ def _load_module(module_name: str):
 
 
 def _resolve_matching_pursuit_function(name: str) -> MatchingPursuitFunction:
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     key = name.lower()
     if key not in _MATCHING_PURSUIT_REGISTRY:
         raise ValueError(
@@ -214,7 +214,7 @@ def get_matching_pursuit(name: str) -> MatchingPursuit:
         - ``get_matching_pursuit("abstract")`` returns an adapter usable as
             ``mp.run(marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2)``.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     function = _resolve_matching_pursuit_function(name)
     return FunctionMatchingPursuit(name=name.lower(), function=function)
 
@@ -242,7 +242,7 @@ def bind_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> MatchingPursu
     MatchingPursuit
         An instance of the requested matching-pursuit adapter with the specified default arguments.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     matching_pursuit = get_matching_pursuit(name)
     if not isinstance(matching_pursuit, FunctionMatchingPursuit):
         return matching_pursuit
@@ -267,7 +267,7 @@ def run_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> Any:
     Any
         The result of the matching-pursuit function.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     return get_matching_pursuit(name).run(*args, **kwargs)
 
 
@@ -326,7 +326,7 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
     MatchingPursuitResults
         Structured matching-pursuit result.
     """
-    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
     
     # Extract marginals from the problem sketch
     marginals = problem_sketch.sketch_values

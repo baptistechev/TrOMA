@@ -11,20 +11,13 @@ from __future__ import annotations
 
 import itertools
 from abc import ABC, abstractmethod
-from numbers import Real
 import enum
 from typing import Any, Union
 
 import numpy as np
 
 from .core.structure import DitString, CylinderSet
-from ._validation import (
-    ensure_int,
-    ensure_str,
-    ensure_instance,
-    ensure_sequence,
-    ensure_dict,
-)
+from ._validation import _Validator
 
 
 class SketchType(enum.StrEnum):
@@ -115,9 +108,9 @@ class ConstraintSketchMap(SketchMap):
         """Build nearest-neighbor constraints and store them in ``self.map``."""
         if interaction_size is not None:
             self.interaction_size = interaction_size
-        n = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        k = ensure_int("interaction_size", self.interaction_size, min_value=1)
-        d = ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
+        n = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        k = _Validator.ensure_int("interaction_size", self.interaction_size, min_value=1)
+        d = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
         if k > n:
             raise ValueError("interaction_size must be <= sketch_length.")
         constraints: list[dict[int, int]] = []
@@ -130,9 +123,9 @@ class ConstraintSketchMap(SketchMap):
         """Build all-interaction constraints and store them in ``self.map``."""
         if interaction_size is not None:
             self.interaction_size = interaction_size
-        n = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        k = ensure_int("interaction_size", self.interaction_size, min_value=1)
-        d = ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
+        n = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        k = _Validator.ensure_int("interaction_size", self.interaction_size, min_value=1)
+        d = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
         if k > n:
             raise ValueError("interaction_size must be <= sketch_length.")
         constraints: list[dict[int, int]] = []
@@ -171,12 +164,10 @@ class ConstraintSketchMap(SketchMap):
         dit_constraints: Any,
     ) -> float | list[float]:
         """Internal: compute marginals for explicit constraints (not necessarily self.map)."""
-        if not isinstance(function_input_dits, (list, tuple)):
-            raise TypeError("function_input_dits must be a list of DitString instances.")
+        _Validator.ensure_instance("function_input_dits", function_input_dits, (list, tuple))
         for i, s in enumerate(function_input_dits):
-            ensure_instance(f"function_input_dits[{i}]", s, DitString)
-        if not isinstance(function_values, (list, tuple, np.ndarray)):
-            raise TypeError("function_values must be a sequence of numeric values.")
+            _Validator.ensure_instance(f"function_input_dits[{i}]", s, DitString)
+        _Validator.ensure_sequence("function_values", function_values)
         if len(function_input_dits) != len(function_values):
             raise ValueError("function_input_dits and function_values must have the same length.")
 
@@ -190,8 +181,7 @@ class ConstraintSketchMap(SketchMap):
             return 0.0
 
         for value in function_values:
-            if not isinstance(value, Real) or isinstance(value, bool):
-                raise TypeError("Values in function_values must be numeric.")
+            _Validator.ensure_real("function_values element", value)
 
         dit_string_length = function_input_dits[0].length
         dit_dimension = function_input_dits[0].dimension
@@ -233,24 +223,23 @@ class ConstraintSketchMap(SketchMap):
     def _validate_constraint_dict(
         self, constraint: dict, dit_string_length: int, dit_dimension: int
     ) -> None:
-        ensure_dict("constraint", constraint)
+        _Validator.ensure_dict("constraint", constraint)
         for dit_idx, dit_val in constraint.items():
-            ensure_int("constraint index", dit_idx)
+            _Validator.ensure_int("constraint index", dit_idx)
             if int(dit_idx) < 0 or int(dit_idx) >= dit_string_length:
                 raise ValueError("Constraint index out of range for dit string length.")
-            ensure_int("constraint value", dit_val)
+            _Validator.ensure_int("constraint value", dit_val)
             if int(dit_val) < 0 or int(dit_val) >= dit_dimension:
                 raise ValueError("Constraint values must be in [0, dit_dimension - 1].")
 
     def _validate_full_assignment(
         self, constraint: Any, dit_string_length: int, dit_dimension: int
     ) -> None:
-        if not isinstance(constraint, (DitString, list, tuple, np.ndarray)):
-            raise TypeError("A full dit assignment must be a DitString or a sequence of integers.")
+        _Validator.ensure_instance("constraint", constraint, (DitString, list, tuple, np.ndarray))
         if len(constraint) != dit_string_length:
             raise ValueError("A full dit assignment must have length dit_string_length.")
         for dit_val in constraint:
-            ensure_int("full-assignment value", dit_val)
+            _Validator.ensure_int("full-assignment value", dit_val)
             if int(dit_val) < 0 or int(dit_val) >= dit_dimension:
                 raise ValueError("Full-assignment values must be in [0, dit_dimension - 1].")
 
@@ -263,10 +252,10 @@ class ConstraintSketchMap(SketchMap):
         if self.map is None:
             raise ValueError("Sketch map is not initialized. Build a sketch first.")
 
-        index = ensure_int("index", index, min_value=0)
-        dit_string_length = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        dit_dimension = ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
-        dit_constraints = ensure_sequence("dit_constraints", self.map)
+        index = _Validator.ensure_int("index", index, min_value=0)
+        dit_string_length = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        dit_dimension = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=1)
+        dit_constraints = _Validator.ensure_sequence("dit_constraints", self.map)
         if index >= dit_dimension ** dit_string_length:
             raise ValueError("index out of range for provided dit_string_length and dit_dimension.")
 
@@ -302,9 +291,9 @@ class ExplicitSketchMap(SketchMap):
             raise ValueError(
                 "interaction_size is required. Set it on the instance before calling this method."
             )
-        n = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        k = ensure_int("interaction_size", self.interaction_size, min_value=1)
-        d = ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
+        n = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        k = _Validator.ensure_int("interaction_size", self.interaction_size, min_value=1)
+        d = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
         if k > n:
             raise ValueError("interaction_size cannot be greater than sketch_length.")
         cylinder_sets: list[CylinderSet] = []
@@ -320,9 +309,9 @@ class ExplicitSketchMap(SketchMap):
             raise ValueError(
                 "interaction_size is required. Set it on the instance before calling this method."
             )
-        n = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        k = ensure_int("interaction_size", self.interaction_size, min_value=1)
-        d = ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
+        n = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        k = _Validator.ensure_int("interaction_size", self.interaction_size, min_value=1)
+        d = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
         if k > n:
             raise ValueError("interaction_size cannot be greater than sketch_length.")
         cylinder_sets: list[CylinderSet] = []
@@ -343,8 +332,7 @@ class ExplicitSketchMap(SketchMap):
         """
         if self.map is None:
             raise ValueError("Sketch map is not initialized. Build a sketch first.")
-        if not isinstance(function_data, (list, tuple, np.ndarray)):
-            raise TypeError("function_data must be a sequence of numeric values.")
+        _Validator.ensure_sequence("function_data", function_data)
         if not hasattr(self.map, "__matmul__"):
             raise TypeError("sketch map must support matrix multiplication (@).")
         values = np.asarray(function_data)
@@ -369,9 +357,9 @@ class ExplicitSketchMap(SketchMap):
         random_state : int, np.random.Generator, or None, optional
             Seed or Generator for reproducibility.
         """
-        n = ensure_int("sketch_length", self.sketch_length, min_value=1)
-        m = ensure_int("size", size, min_value=1)
-        d = ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
+        n = _Validator.ensure_int("sketch_length", self.sketch_length, min_value=1)
+        m = _Validator.ensure_int("size", size, min_value=1)
+        d = _Validator.ensure_int("sketch_dimension", self.sketch_dimension, min_value=2)
         cols = d ** n
         rng = random_state if isinstance(random_state, np.random.Generator) \
             else np.random.default_rng(random_state)

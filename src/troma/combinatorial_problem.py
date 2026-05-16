@@ -10,7 +10,7 @@ import numpy as np
 from .sketch_map import ConstraintSketchMap, SketchMap
 from .core.structure import DitString, Sample, Restriction
 from .core.embedding import reverse_spectrum_restriction
-from ._validation import ensure_instance, ensure_callable, ensure_int, ensure_optional_dict
+from ._validation import _Validator
 
 
 class SketchType(enum.StrEnum):
@@ -110,15 +110,14 @@ class CombinatorialProblem:
             Samples whose objective value is below the threshold are discarded.
             ``"Auto"`` sets the threshold to the 90th percentile of non-zero values.
         """
-        n_samples = ensure_int("n_samples", n_samples, min_value=1)
+        n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
             sampling_function = self._uniform_sampling
         else:
-            ensure_callable("sampling_function", sampling_function)
-        ensure_optional_dict("sampling_args", sampling_args)
-        if threshold_parameter is not None and threshold_parameter != "Auto":
-            if not isinstance(threshold_parameter, (int, float, np.integer, np.floating)):
-                raise TypeError("threshold_parameter must be a real number, 'Auto', or None.")
+            _Validator.ensure_callable("sampling_function", sampling_function)
+        _Validator.ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter != "Auto":
+            _Validator.ensure_optional_real("threshold_parameter", threshold_parameter)
 
         indexes, dit_strings = sampling_function(
             n_samples, self.problem_size, self.problem_dimension,
@@ -218,7 +217,7 @@ class RestrictedProblem(CombinatorialProblem):
         dit_value_restrictions: list[int] | None = None,
         additional_dits_val: int = 0,
     ) -> None:
-        ensure_instance("problem", problem, (CombinatorialProblem, RestrictedProblem))
+        _Validator.ensure_instance("problem", problem, (CombinatorialProblem, RestrictedProblem))
 
         super().__init__(
             objective_function=problem.objective_function,
@@ -269,15 +268,14 @@ class RestrictedProblem(CombinatorialProblem):
         ):
             return super().sampling(n_samples, sampling_function, sampling_args, threshold_parameter)
 
-        n_samples = ensure_int("n_samples", n_samples, min_value=1)
+        n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
             sampling_function = self._uniform_sampling
         else:
-            ensure_callable("sampling_function", sampling_function)
-        ensure_optional_dict("sampling_args", sampling_args)
-        if threshold_parameter is not None and threshold_parameter != "Auto":
-            if not isinstance(threshold_parameter, (int, float, np.integer, np.floating)):
-                raise TypeError("threshold_parameter must be a real number, 'Auto', or None.")
+            _Validator.ensure_callable("sampling_function", sampling_function)
+        _Validator.ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter != "Auto":
+            _Validator.ensure_optional_real("threshold_parameter", threshold_parameter)
 
         # Sample in the restricted space.
         indexes_rest, dit_strings_rest = sampling_function(

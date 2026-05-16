@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from numbers import Real
 
 import neal
 import scipy.optimize as sk_opt
@@ -11,22 +10,22 @@ from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
 
+from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ._quantum_map import create_qaoa_circ as _create_qaoa_circ
 from ..core.structure import DitString, Hamiltonian
-from .._validation import ensure_int, ensure_real, ensure_str, ensure_optional_dict, ensure_sequence
+from .._validation import _Validator
 
 
-def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 1000) -> int:
+def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) -> int:
     """
     Perform digital annealing to find a solution to the optimization problem defined by the marginals.
     Only work for QUBO problems, i.e., when marginals are defined on nearest neighbor pairs of bits.
 
     Parameters
     ----------
-    marginals : list of float
-        The marginals of the function defined on the full spectrum of dit strings. The order of the values should correspond
-        to the order of the dit strings in the full spectrum.
+    problem_sketch : ProblemSketch
+        Problem sketch containing nearest-neighbor binary marginals.
     number_iter : int, optional
         The number of iterations for the digital annealing algorithm. The default is 1000.
     
@@ -35,14 +34,31 @@ def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 10
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
-    number_iter = ensure_int("number_iter", number_iter, min_value=1)
-    marginals = list(marginals)
+    number_iter = _Validator.ensure_int("number_iter", number_iter, min_value=1)
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    marginals = list(problem_sketch.sketch_values)
+    bit_string_length = int(
+        problem_sketch.restricted_problem_size
+        if isinstance(problem_sketch, RestrictedProblemSketch)
+        else problem_sketch.problem_size
+    )
+    constraints = problem_sketch.sketch_map.map
+    problem_dimension = (
+        problem_sketch.restricted_problem_dimension
+        if isinstance(problem_sketch, RestrictedProblemSketch)
+        else problem_sketch.problem_dimension
+    )
+    if problem_dimension != 2:
+        raise ValueError("digital_annealing currently supports binary (dimension=2) problems only.")
     if len(marginals) == 0 or len(marginals) % 4 != 0:
         raise ValueError("marginals length must be a positive multiple of 4 for nearest-neighbor QUBO marginals.")
 
     #Define spin-chain Ising Hamiltonian from the marginals
     n = len(marginals)//4 + 1
-    constraints = ConstraintSketchMap(n, 2, sketch_dimension=2, constraints="nearest_neighbors").map
+    if n != bit_string_length:
+        raise ValueError("marginals are inconsistent with problem_sketch size for nearest-neighbor QUBO.")
     H = Hamiltonian.from_constraints(constraints, marginals, bit_string_length=n)
 
     #Convert the Hamiltonian to the format required by the neal library
@@ -56,9 +72,7 @@ def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 10
 
 
 def QAOA(
-    marginals: list[float] | np.ndarray,
-    bit_constraints: list,
-    bit_string_length: int,
+    problem_sketch: ProblemSketch,
     number_layers: int = 4,
     method: str = "COBYLA",
     sampler: Any | None = None,
@@ -72,12 +86,8 @@ def QAOA(
 
     Parameters
     ----------
-    marginals : list of float
-        The marginals corresponding to each pattern in constraints_sketch. The order of the values should correspond to the order of the patterns in constraints_sketch.
-    bit_constraints : list of patterns
-        Each pattern can be either a list of local states (for full patterns) or a dict mapping qubit indices to fixed bit values (for constraints). The order of the patterns should correspond to the order of the marginals in the input.
-    bit_string_length : int
-        The length of the bit strings (i.e., the number of qubits).
+    problem_sketch : ProblemSketch
+        Problem sketch containing marginals and a ConstraintSketchMap.
     number_layers : int, optional
         The number of layers in the QAOA circuit. The default is 4.
     method : str, optional
@@ -98,25 +108,28 @@ def QAOA(
 
     #Security checks on the inputs
     #-----------------------------
-    marginals = list(marginals)
-    bit_constraints = ensure_sequence("bit_constraints", bit_constraints)
+
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    marginals = list(problem_sketch.sketch_values)
+    bit_string_length = int(
+        problem_sketch.restricted_problem_size
+        if isinstance(problem_sketch, RestrictedProblemSketch)
+        else problem_sketch.problem_size
+    )
+    bit_constraints = problem_sketch.sketch_map.map
+    _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
     if len(bit_constraints) == 0:
         raise ValueError("bit_constraints must be non-empty.")
     if len(marginals) != len(bit_constraints):
         raise ValueError("marginals and bit_constraints must have the same length.")
-    bit_string_length = ensure_int("bit_string_length", bit_string_length, min_value=1)
-    number_layers = ensure_int("number_layers", number_layers, min_value=1)
-    number_shots = ensure_int("number_shots", number_shots, min_value=1)
-    ensure_str("method", method)
-    ensure_optional_dict("optimizer_options", optimizer_options)
+    bit_string_length = _Validator.ensure_int("bit_string_length", bit_string_length, min_value=1)
+    number_layers = _Validator.ensure_int("number_layers", number_layers, min_value=1)
+    number_shots = _Validator.ensure_int("number_shots", number_shots, min_value=1)
+    _Validator.ensure_str("method", method)
+    _Validator.ensure_optional_dict("optimizer_options", optimizer_options)
     #-----------------------------
-
-    constraint_sketch_map = ConstraintSketchMap(
-        sketch_length=bit_string_length,
-        interaction_size=1,
-        sketch_map=bit_constraints,
-        sketch_dimension=2,
-    )
     
 
     #Init the sampler if not provided as it is used in the cost function, and set the number of shots
@@ -129,7 +142,7 @@ def QAOA(
         if isinstance(config, str):
             config = [int(bit) for bit in config]
         config_index = DitString(list(config), dimension=2).to_integer('L')
-        return float(np.dot(- np.asarray(marginals), constraint_sketch_map.reconstruct_structured_matrix_column(config_index)))
+        return float(np.dot(- np.asarray(marginals), problem_sketch.sketch_map.reconstruct_structured_matrix_column(config_index)))
 
     def _bind_qaoa_parameters(circuit: Any, theta: Any) -> Any:
         beta_parameters = circuit.metadata["beta_parameters"]

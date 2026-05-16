@@ -7,7 +7,7 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter, ParameterVector
 
 from ..core.structure import Hamiltonian
-from .._validation import ensure_int
+from .._validation import _Validator
 
 
 def create_qaoa_circ(
@@ -29,10 +29,9 @@ def create_qaoa_circ(
     QuantumCircuit
         Parameterized QAOA circuit.
     """
-    if not isinstance(hamiltonian, Hamiltonian):
-        raise TypeError("hamiltonian must be a Hamiltonian instance.")
-    num_qubits = ensure_int("hamiltonian.num_qubits", hamiltonian.num_qubits, min_value=1)
-    num_layers = ensure_int("num_layers", num_layers, min_value=1)
+    _Validator.ensure_instance("hamiltonian", hamiltonian, Hamiltonian)
+    num_qubits = _Validator.ensure_int("hamiltonian.num_qubits", hamiltonian.num_qubits, min_value=1)
+    num_layers = _Validator.ensure_int("num_layers", num_layers, min_value=1)
 
     circuit = QuantumCircuit(num_qubits)
 

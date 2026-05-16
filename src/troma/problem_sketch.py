@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from .sketch_map import SketchMap
 from .combinatorial_problem import CombinatorialProblem, RestrictedProblem
 from .core.structure import Sample, Restriction
-from ._validation import ensure_instance
+from ._validation import _Validator
 
 
 class ProblemSketch(ABC):
@@ -24,8 +24,8 @@ class CombinatorialProblemSketch(ProblemSketch):
         sketch_map: SketchMap,
         sketch_values: list[float] | None = None,
     ) -> None:
-        ensure_instance("problem", problem, CombinatorialProblem)
-        ensure_instance("sketch_map", sketch_map, SketchMap)
+        _Validator.ensure_instance("problem", problem, CombinatorialProblem)
+        _Validator.ensure_instance("sketch_map", sketch_map, SketchMap)
 
         self.objective_function = problem.objective_function
         self.problem_size: int = problem.problem_size
@@ -41,7 +41,7 @@ class CombinatorialProblemSketch(ProblemSketch):
         sketch_values: list[float] | None = None,
     ) -> "CombinatorialProblemSketch":
         """Build a new instance by copying an existing one."""
-        ensure_instance("other", other, CombinatorialProblemSketch)
+        _Validator.ensure_instance("other", other, CombinatorialProblemSketch)
         new_instance = cls.__new__(cls)
         new_instance.objective_function = other.objective_function
         new_instance.problem_size = other.problem_size
@@ -63,8 +63,8 @@ class RestrictedProblemSketch(ProblemSketch):
         sketch_map: SketchMap,
         sketch_values: list[float] | None = None,
     ) -> None:
-        ensure_instance("problem", problem, RestrictedProblem)
-        ensure_instance("sketch_map", sketch_map, SketchMap)
+        _Validator.ensure_instance("problem", problem, RestrictedProblem)
+        _Validator.ensure_instance("sketch_map", sketch_map, SketchMap)
 
         self.objective_function = problem.objective_function
         self.problem_size: int = problem.problem_size
@@ -83,7 +83,7 @@ class RestrictedProblemSketch(ProblemSketch):
         sketch_values: list[float] | None = None,
     ) -> "RestrictedProblemSketch":
         """Build a new instance by copying an existing one."""
-        ensure_instance("other", other, RestrictedProblemSketch)
+        _Validator.ensure_instance("other", other, RestrictedProblemSketch)
         new_instance = cls.__new__(cls)
         new_instance.objective_function = other.objective_function
         new_instance.problem_size = other.problem_size

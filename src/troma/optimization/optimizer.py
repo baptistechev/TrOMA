@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import inspect
 from importlib import import_module
 from typing import Any, Callable
-from .._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict
+from .._validation import _Validator
 
 
 OptimizerFunction = Callable[..., int]
@@ -28,10 +28,10 @@ class FunctionOptimizer(Optimizer):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        ensure_nonempty_str("name", name)
-        ensure_callable("function", function)
-        ensure_tuple("default_args", default_args)
-        ensure_optional_dict("default_kwargs", default_kwargs)
+        _Validator.ensure_nonempty_str("name", name)
+        _Validator.ensure_callable("function", function)
+        _Validator.ensure_tuple("default_args", default_args)
+        _Validator.ensure_optional_dict("default_kwargs", default_kwargs)
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -104,7 +104,7 @@ _OPTIMIZER_REGISTRY: dict[str, tuple[str, str]] = {
 
 
 def _load_module(module_name: str) -> Any:
-    ensure_nonempty_str("module_name", module_name)
+    _Validator.ensure_nonempty_str("module_name", module_name)
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -114,7 +114,7 @@ def _load_module(module_name: str) -> Any:
 
 
 def _resolve_optimizer_function(name: str) -> OptimizerFunction:
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     key = name.lower()
     if key not in _OPTIMIZER_REGISTRY:
         raise ValueError(
@@ -168,7 +168,7 @@ def get_optimizer(name: str) -> Optimizer:
         - ``get_optimizer("qaoa")`` returns an optimizer that can be used as
             ``optimizer.optimize(marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3)``.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     function = _resolve_optimizer_function(name)
     return FunctionOptimizer(name=name.lower(), function=function)
 
@@ -197,7 +197,7 @@ def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
     Optimizer
         An instance of the requested optimizer with the specified default arguments.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     optimizer = get_optimizer(name)
     if not isinstance(optimizer, FunctionOptimizer):
         return optimizer
@@ -229,5 +229,5 @@ def optimize(name: str, *args: Any, **kwargs: Any) -> int:
     int
         The result of the optimization.
     """
-    ensure_nonempty_str("name", name)
+    _Validator.ensure_nonempty_str("name", name)
     return get_optimizer(name).optimize(*args, **kwargs)

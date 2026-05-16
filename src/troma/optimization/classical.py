@@ -1,70 +1,75 @@
 from __future__ import annotations
 
 import copy
-from numbers import Real
 from typing import Any
 
 import numpy as np
 import scipy.optimize as scipy_opt
 
+from ..problem_sketch import ProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ..core.structure import DitString
-from .._validation import ensure_int, ensure_real, ensure_sequence, ensure_optional_dict
+from .._validation import _Validator
 
 
-def brute_force_max(marginals: list[float] | np.ndarray, sketch: np.ndarray) -> int:
+def brute_force_max(problem_sketch: ProblemSketch) -> int:
     """
     Brute force maximization: find the dit-string index that maximizes sketch.T @ marginals.
 
     Parameters
     ----------
-    marginals : list of float or np.ndarray
-        Marginal values, one per sketch row.
-    sketch : np.ndarray
-        2D sketch matrix (rows = constraints, columns = dit strings).
+    problem_sketch : ProblemSketch
+        Problem sketch containing sketch values and an ExplicitSketchMap.
 
     Returns
     -------
     int
         Index of the maximizing dit string.
     """
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    sketch = problem_sketch.sketch_map.map
     if not hasattr(sketch, "T"):
-        raise TypeError("sketch must be a 2D array-like matrix.")
-    marginals = np.asarray(marginals)
+        raise TypeError("problem_sketch.sketch_map.map must be a 2D array-like matrix.")
+    marginals = np.asarray(problem_sketch.sketch_values)
     if hasattr(sketch, "shape") and len(sketch.shape) >= 2 and sketch.shape[0] != marginals.shape[0]:
         raise ValueError("marginals length must match sketch row count.")
     return int(np.argmax(sketch.T @ marginals))
 
 
 def spin_chain_nn_max(
-    marginals: list[float] | np.ndarray,
-    dit_string_length: int,
-    interaction_size: int = 2,
-    dit_dimension: int = 2,
+    problem_sketch: ProblemSketch,
 ) -> int:
     """
     Dynamic-programming nearest-neighbor maximization on a dit spin chain.
 
     Parameters
     ----------
-    marginals : list of float or np.ndarray
-        Flat marginal values ordered by (window, spin_1, ..., spin_k).
-    dit_string_length : int
-        Number of dits in the chain.
-    interaction_size : int, optional
-        Size of nearest-neighbor windows. Default is 2.
-    dit_dimension : int, optional
-        Number of values each dit can take. Default is 2.
+    problem_sketch : ProblemSketch
+        Problem sketch containing nearest-neighbor marginals and a
+        ConstraintSketchMap.
 
     Returns
     -------
     int
         Index of the optimal dit-string configuration.
     """
-    marginals = list(marginals)
-    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
-    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
-    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    marginals = list(problem_sketch.sketch_values)
+    dit_string_length = int(getattr(problem_sketch, "restricted_problem_size", problem_sketch.problem_size))
+    dit_dimension = int(getattr(problem_sketch, "restricted_problem_dimension", problem_sketch.problem_dimension))
+    interaction_size = int(
+        problem_sketch.sketch_map.interaction_size
+        if problem_sketch.sketch_map.interaction_size is not None
+        else 2
+    )
+
+    dit_string_length = _Validator.ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = _Validator.ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = _Validator.ensure_int("dit_dimension", dit_dimension, min_value=2)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size must be <= dit_string_length.")
     expected_marginals = (dit_string_length - interaction_size + 1) * (dit_dimension ** interaction_size)
@@ -143,10 +148,7 @@ def spin_chain_nn_max(
 
 
 def dual_annealing(
-    marginals: list[float] | np.ndarray,
-    dit_constraints: list[dict],
-    dit_string_length: int,
-    dit_dimension: int = 2,
+    problem_sketch: ProblemSketch,
     opt_func_kwargs: dict | None = None,
 ) -> int:
     """
@@ -154,14 +156,8 @@ def dual_annealing(
 
     Parameters
     ----------
-    marginals : list of float or np.ndarray
-        Marginal values.
-    dit_constraints : list of dict
-        Dit constraints.
-    dit_string_length : int
-        Length of the dit strings.
-    dit_dimension : int, optional
-        Dit base. Default is 2.
+    problem_sketch : ProblemSketch
+        Problem sketch containing marginals and a ConstraintSketchMap.
     opt_func_kwargs : dict, optional
         Extra keyword arguments for scipy.optimize.dual_annealing.
 
@@ -170,20 +166,19 @@ def dual_annealing(
     int
         Index of the best dit string found.
     """
-    marginals = list(marginals)
-    ensure_sequence("dit_constraints", dit_constraints)
-    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
-    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
-    ensure_optional_dict("opt_func_kwargs", opt_func_kwargs)
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    marginals = list(problem_sketch.sketch_values)
+    dit_string_length = int(getattr(problem_sketch, "restricted_problem_size", problem_sketch.problem_size))
+    dit_dimension = int(getattr(problem_sketch, "restricted_problem_dimension", problem_sketch.problem_dimension))
+    sketch_map = problem_sketch.sketch_map
+    dit_constraints = sketch_map.map
+    dit_string_length = _Validator.ensure_int("dit_string_length", dit_string_length, min_value=1)
+    dit_dimension = _Validator.ensure_int("dit_dimension", dit_dimension, min_value=2)
+    _Validator.ensure_optional_dict("opt_func_kwargs", opt_func_kwargs)
     if len(marginals) != len(dit_constraints):
         raise ValueError("marginals and dit_constraints must have the same length.")
-
-    constraint_sketch_map = ConstraintSketchMap(
-        sketch_length=dit_string_length,
-        interaction_size=1,
-        sketch_map=dit_constraints,
-        sketch_dimension=dit_dimension,
-    )
 
     bounds = [(0, dit_dimension**dit_string_length - 1)]
 
@@ -191,7 +186,7 @@ def dual_annealing(
         config_index = int(np.round(x[0]))
         return float(np.dot(
             -np.asarray(marginals),
-            constraint_sketch_map.reconstruct_structured_matrix_column(config_index),
+            sketch_map.reconstruct_structured_matrix_column(config_index),
         ))
 
     result = scipy_opt.dual_annealing(objective_function, bounds, **(opt_func_kwargs or {}))
@@ -199,10 +194,7 @@ def dual_annealing(
 
 
 def simulated_annealing(
-    marginals: list[float] | np.ndarray,
-    dit_constraints: list[dict],
-    dit_string_length: int,
-    dit_dimension: int = 2,
+    problem_sketch: ProblemSketch,
     max_iter: int = 1000,
     T0: float = 1.0,
     alpha: float = 0.99,
@@ -212,14 +204,8 @@ def simulated_annealing(
 
     Parameters
     ----------
-    marginals : list of float or np.ndarray
-        Marginal values.
-    dit_constraints : list of dict
-        Dit constraints.
-    dit_string_length : int
-        Length of the dit strings.
-    dit_dimension : int, optional
-        Dit base. Default is 2.
+    problem_sketch : ProblemSketch
+        Problem sketch containing marginals and a ConstraintSketchMap.
     max_iter : int, optional
         Maximum iterations. Default is 1000.
     T0 : float, optional
@@ -232,26 +218,25 @@ def simulated_annealing(
     int
         Index of the best dit string found.
     """
-    marginals = list(marginals)
-    ensure_sequence("dit_constraints", dit_constraints)
-    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
-    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
-    max_iter = ensure_int("max_iter", max_iter, min_value=1)
-    T0 = ensure_real("T0", T0)
+    if problem_sketch.sketch_values is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
+
+    marginals = list(problem_sketch.sketch_values)
+    dit_string_length = int(getattr(problem_sketch, "restricted_problem_size", problem_sketch.problem_size))
+    dit_dimension = int(getattr(problem_sketch, "restricted_problem_dimension", problem_sketch.problem_dimension))
+    sketch_map = problem_sketch.sketch_map
+    dit_constraints = sketch_map.map
+    dit_string_length = _Validator.ensure_int("dit_string_length", dit_string_length, min_value=1)
+    dit_dimension = _Validator.ensure_int("dit_dimension", dit_dimension, min_value=2)
+    max_iter = _Validator.ensure_int("max_iter", max_iter, min_value=1)
+    T0 = _Validator.ensure_real("T0", T0)
     if T0 <= 0:
         raise ValueError("T0 must be > 0.")
-    alpha = ensure_real("alpha", alpha)
+    alpha = _Validator.ensure_real("alpha", alpha)
     if alpha <= 0 or alpha >= 1:
         raise ValueError("alpha must be in (0, 1).")
     if len(marginals) != len(dit_constraints):
         raise ValueError("marginals and dit_constraints must have the same length.")
-
-    constraint_sketch_map = ConstraintSketchMap(
-        sketch_length=dit_string_length,
-        interaction_size=1,
-        sketch_map=dit_constraints,
-        sketch_dimension=dit_dimension,
-    )
 
     def _sa_binary(f: Any, n: int) -> tuple[np.ndarray, float]:
         x = np.random.randint(0, dit_dimension, size=n)
@@ -275,7 +260,7 @@ def simulated_annealing(
         config_index = DitString(list(config), dimension=dit_dimension).to_integer()
         return float(np.dot(
             -np.asarray(marginals),
-            constraint_sketch_map.reconstruct_structured_matrix_column(config_index),
+            sketch_map.reconstruct_structured_matrix_column(config_index),
         ))
 
     best_config, _ = _sa_binary(objective_function, dit_string_length)

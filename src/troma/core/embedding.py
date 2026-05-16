@@ -5,20 +5,14 @@ from typing import Any
 import numpy as np
 
 from .structure import DitString
-from .._validation import (
-    ensure_int,
-    ensure_unique_items,
-    ensure_instance,
-    ensure_dict,
-)
+from .._validation import _Validator
 
 
 def _validate_dit_string_list(spectrum: Any, name: str) -> list[DitString]:
     """Validate that spectrum is a list of DitString instances with consistent length/dimension."""
-    if not isinstance(spectrum, (list, tuple)):
-        raise TypeError(f"{name} must be a list of DitString instances.")
+    _Validator.ensure_instance(name, spectrum, (list, tuple))
     for i, s in enumerate(spectrum):
-        ensure_instance(f"{name}[{i}]", s, DitString)
+        _Validator.ensure_instance(f"{name}[{i}]", s, DitString)
     if len(spectrum) > 1:
         ref_length = spectrum[0].length
         ref_dim = spectrum[0].dimension
@@ -31,47 +25,44 @@ def _validate_dit_string_list(spectrum: Any, name: str) -> list[DitString]:
 
 
 def _validate_dit_restrictions(dit_restrictions: Any) -> list[int]:
-    if not isinstance(dit_restrictions, (list, tuple, np.ndarray)):
-        raise TypeError("dit_restrictions must be a sequence.")
-    result = [ensure_int("dit_restrictions item", idx, min_value=0) for idx in dit_restrictions]
+    _Validator.ensure_sequence("dit_restrictions", dit_restrictions)
+    result = [_Validator.ensure_int("dit_restrictions item", idx, min_value=0) for idx in dit_restrictions]
     if not result:
         raise ValueError("dit_restrictions must contain at least one index.")
-    ensure_unique_items("dit_restrictions", result)
+    _Validator.ensure_unique_items("dit_restrictions", result)
     return result
 
 
 def _validate_dit_value_restrictions(dit_value_restrictions: Any) -> list[int]:
-    if not isinstance(dit_value_restrictions, (list, tuple, np.ndarray)):
-        raise TypeError("dit_value_restrictions must be a sequence.")
-    result = [ensure_int("dit_value_restrictions item", v, min_value=0) for v in dit_value_restrictions]
+    _Validator.ensure_sequence("dit_value_restrictions", dit_value_restrictions)
+    result = [_Validator.ensure_int("dit_value_restrictions item", v, min_value=0) for v in dit_value_restrictions]
     if len(result) < 2:
         raise ValueError("dit_value_restrictions must contain at least two values.")
-    ensure_unique_items("dit_value_restrictions", result)
+    _Validator.ensure_unique_items("dit_value_restrictions", result)
     return result
 
 
 def _validate_additional_dits(additional_dits: Any) -> list[int]:
     if additional_dits is None:
         return []
-    if not isinstance(additional_dits, (list, tuple, np.ndarray)):
-        raise TypeError("additional_dits must be a sequence.")
-    result = [ensure_int("additional_dits item", v, min_value=0) for v in additional_dits]
-    ensure_unique_items("additional_dits", result)
+    _Validator.ensure_sequence("additional_dits", additional_dits)
+    result = [_Validator.ensure_int("additional_dits item", v, min_value=0) for v in additional_dits]
+    _Validator.ensure_unique_items("additional_dits", result)
     return result
 
 
 def _validate_dimension_mapping(dimension_mapping: Any) -> dict[int, int] | None:
     if dimension_mapping is None:
         return None
-    ensure_dict("dimension_mapping", dimension_mapping)
+    _Validator.ensure_dict("dimension_mapping", dimension_mapping)
     for original_val, new_val in dimension_mapping.items():
-        ensure_int("dimension_mapping key", original_val, min_value=0)
-        ensure_int("dimension_mapping value", new_val, min_value=0)
+        _Validator.ensure_int("dimension_mapping key", original_val, min_value=0)
+        _Validator.ensure_int("dimension_mapping value", new_val, min_value=0)
     return dimension_mapping
 
 
 def _validate_additional_dits_val(additional_dits_val: Any) -> int:
-    return ensure_int("additional_dits_val", additional_dits_val, min_value=0)
+    return _Validator.ensure_int("additional_dits_val", additional_dits_val, min_value=0)
 
 
 def spectrum_restriction(
@@ -216,7 +207,7 @@ def reverse_spectrum_restriction(
     >>> reverse_spectrum_restriction(restricted, 6, [1,2,4,5], [0,2])
     [DitString([0,0,0,0,0,0], dimension=3), ...]
     """
-    original_size = ensure_int("original_size", original_size, min_value=1)
+    original_size = _Validator.ensure_int("original_size", original_size, min_value=1)
     additional_dits_val = _validate_additional_dits_val(additional_dits_val)
     spectrum_dits = _validate_dit_string_list(spectrum_dits, "spectrum_dits")
 

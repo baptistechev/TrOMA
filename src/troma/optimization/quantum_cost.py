@@ -4,7 +4,7 @@ from ._quantum_map import create_qaoa_circ
 from ..core.structure import Hamiltonian
 from ..problem_sketch import ProblemSketch
 from ..sketch_map import ConstraintSketchMap
-from .._validation import ensure_instance
+from .._validation import _Validator
 
 
 # M4 model coefficients fitted on 140 ibm_marrakesh experiments.
@@ -54,9 +54,8 @@ def estimate_matching_pursuit_qpu_cost(
         ``circuits_per_qaoa_run``, ``seconds_per_circuit``,
         ``qaoa_run_seconds``, ``total_seconds``.
     """
-    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
-    if not isinstance(problem_sketch.sketch_map, ConstraintSketchMap):
-        raise TypeError("problem_sketch.sketch_map must be a ConstraintSketchMap.")
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
     if not problem_sketch.sketch_values:
         raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
 
