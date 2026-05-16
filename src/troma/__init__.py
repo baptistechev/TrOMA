@@ -1,13 +1,9 @@
 from importlib.metadata import PackageNotFoundError, version
 
-# Import data_structure utilities (cylinder-set helpers)
-from .core.data_structure import (
-    create_cylinder_set_indicator,
-    kronecker_develop,
-    belongs_to_cylinder_set,
-)
+# Import core structure classes
+from .core.structure import DitString, CylinderSet, Restriction, Sample
 
-# Import embedding (depends on data_structure)
+# Import embedding
 from .core.embedding import (
 	spectrum_embedding,
 	spectrum_restriction,
@@ -22,7 +18,6 @@ from .problem_sketch import ProblemSketch, CombinatorialProblemSketch, Restricte
 
 # Import combinatorial problem (depends on sketch_map)
 from .combinatorial_problem import CombinatorialProblem
-from .core.structure import DitString, Restriction, Sample
 
 # Import optimization
 from .optimization.optimizer import (
@@ -63,9 +58,7 @@ except PackageNotFoundError:
 __all__ = [
 	"__version__",
 	"DitString",
-	"create_cylinder_set_indicator",
-    "kronecker_develop",
-	"belongs_to_cylinder_set",
+	"CylinderSet",
 	"spectrum_embedding",
 	"spectrum_restriction",
 	"reverse_spectrum_restriction",

@@ -12,7 +12,6 @@ from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
 
 from ..sketchs import abstract as ab
-from ..core import data_structure as ds
 from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
 from ..core.structure import DitString
 from .._validation import ensure_int, ensure_real, ensure_str, ensure_optional_dict, ensure_sequence

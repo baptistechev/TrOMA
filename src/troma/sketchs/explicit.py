@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from ..core import data_structure as ds
+from ..core.structure import CylinderSet
 from .._validation import ensure_int
 
 
@@ -68,16 +68,15 @@ def nearest_neighbors_interactions_sketch(
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size cannot be greater than dit_string_length.")
 
-    cylinder_sets = []
+    cylinder_sets: list[CylinderSet] = []
     constrained_dits_indices = [
         tuple(range(i, i + interaction_size))
         for i in range(dit_string_length - interaction_size + 1)
     ]
     for constraint_dits in constrained_dits_indices:
-        cylinder_sets += ds.create_cylinder_set_indicator(constraint_dits, dit_string_length, dit_dimension)
+        cylinder_sets += CylinderSet.for_positions(constraint_dits, dit_string_length, dit_dimension)
 
-    A = [ds.kronecker_develop(s) for s in cylinder_sets]
-    return np.array(A)
+    return np.array([cs.kronecker_develop() for cs in cylinder_sets])
 
 
 def all_interactions_sketch(
@@ -108,13 +107,11 @@ def all_interactions_sketch(
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size cannot be greater than dit_string_length.")
 
-    cylinder_sets = []
-    constrained_dits_indices = itertools.combinations(range(dit_string_length), interaction_size)
-    for constraint_dits in constrained_dits_indices:
-        cylinder_sets += ds.create_cylinder_set_indicator(constraint_dits, dit_string_length, dit_dimension)
+    cylinder_sets: list[CylinderSet] = []
+    for constraint_dits in itertools.combinations(range(dit_string_length), interaction_size):
+        cylinder_sets += CylinderSet.for_positions(constraint_dits, dit_string_length, dit_dimension)
 
-    A = [ds.kronecker_develop(s) for s in cylinder_sets]
-    return np.array(A)
+    return np.array([cs.kronecker_develop() for cs in cylinder_sets])
 
 
 def random_sketch(
