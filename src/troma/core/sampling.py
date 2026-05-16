@@ -84,7 +84,9 @@ def objective_sampling(
         number_samples, dit_string_length, dit_dimension, **sampling_args
     )
 
-    sample_values = np.array([objective_function(s) for s in sample_dit_strings])
+    # Convert DitString to numpy array so user objective functions receive array-like input,
+    # matching the original contract (objective_function was always called with ndarray).
+    sample_values = np.array([objective_function(np.asarray(s)) for s in sample_dit_strings])
 
     if threshold_parameter == "Auto":
         non_zero = sample_values[sample_values != 0]
@@ -198,7 +200,9 @@ def restricted_objective_sampling(
         additional_dits_val=restriction.additional_dits_val,
     )
 
-    sample_values = np.array([objective_function(s) for s in sample_dit_strings])
+    # Convert DitString to numpy array so user objective functions receive array-like input,
+    # matching the original contract (objective_function was always called with ndarray).
+    sample_values = np.array([objective_function(np.asarray(s)) for s in sample_dit_strings])
 
     if threshold_parameter == "Auto":
         non_zero = sample_values[sample_values != 0]
