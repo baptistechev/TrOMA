@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-import numbers
 from collections.abc import Iterable
 
 import numpy as np
 
-
-def _ensure_int(name: str, value) -> int:
-    if not isinstance(value, numbers.Integral) or isinstance(value, bool):
-        raise TypeError(f"{name} must be an integer.")
-    return int(value)
+from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_sequence
 
 
 def integer_to_dit_string(
@@ -37,9 +32,10 @@ def integer_to_dit_string(
     np.ndarray
         Encoded dit string as an integer numpy array.
     """
-    integer = _ensure_int("integer", integer)
-    dit_dimension = _ensure_int("dit_dimension", dit_dimension)
-    dit_string_length = _ensure_int("dit_string_length", dit_string_length)
+    integer = ensure_int("integer", integer)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
+    dit_string_length = ensure_int("dit_string_length", dit_string_length)
+    ensure_str("convention", convention)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
     if dit_string_length < 0:
@@ -85,6 +81,8 @@ def dit_string_to_integer(
     int
         Decoded integer.
     """
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
+    ensure_str("convention", convention)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
     if convention not in ("R", "L"):
@@ -100,8 +98,7 @@ def dit_string_to_integer(
     else:
         raw = list(dit_string)
         for v in raw:
-            if not isinstance(v, numbers.Integral) or isinstance(v, bool):
-                raise TypeError("Each value in dit_string must be an integer.")
+            ensure_int("dit_string element", v)
         values = [int(v) for v in raw]
 
     for value in values:
@@ -132,6 +129,7 @@ def dit_string_to_computational_basis(
     list[list[int]]
         One-hot vectors for each dit value.
     """
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
 
@@ -177,8 +175,8 @@ def create_cylinder_set_indicator(
     list[list[list[int]]]
         List of factorized cylinder indicators, one per fixed-position assignment.
     """
-    set_size = _ensure_int("set_size", set_size)
-    dit_dimension = _ensure_int("dit_dimension", dit_dimension)
+    set_size = ensure_int("set_size", set_size)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
     if set_size < 0:
         raise ValueError("set_size must be >= 0.")
     if dit_dimension < 2:
@@ -186,11 +184,9 @@ def create_cylinder_set_indicator(
 
     fixed_positions_raw = list(fixed_dit_positions)
     for pos in fixed_positions_raw:
-        if not isinstance(pos, numbers.Integral) or isinstance(pos, bool):
-            raise TypeError("Each index in fixed_dit_positions must be an integer.")
+        ensure_int("fixed_dit_positions element", pos)
     fixed_positions = [int(pos) for pos in fixed_positions_raw]
-    if len(set(fixed_positions)) != len(fixed_positions):
-        raise ValueError("fixed_dit_positions must contain unique indices.")
+    ensure_unique_items("fixed_dit_positions", fixed_positions)
 
     for position in fixed_positions:
         if position < 0 or position >= set_size:
@@ -235,6 +231,8 @@ def kronecker_develop(
     np.ndarray
         Full developed indicator vector.
     """
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
+    ensure_str("convention", convention)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
     if convention not in ("R", "L"):
@@ -277,6 +275,7 @@ def belongs_to_cylinder_set(
     bool
         ``True`` if the element satisfies all fixed coordinates, otherwise ``False``.
     """
+    dit_dimension = ensure_int("dit_dimension", dit_dimension)
     if dit_dimension < 2:
         raise ValueError("dit_dimension must be >= 2.")
 

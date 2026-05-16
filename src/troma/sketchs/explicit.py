@@ -1,26 +1,32 @@
-import numpy as np
+from __future__ import annotations
+
 import itertools
-from numbers import Integral
+from typing import Any
+
+import numpy as np
 
 from ..core import data_structure as ds
+from .._validation import ensure_int
 
-def compute_marginal(full_sprectrum_values, sketch_function):
+
+def compute_marginal(
+    full_sprectrum_values: list[float] | np.ndarray,
+    sketch_function: np.ndarray,
+) -> list[float]:
     """
-    Compute the marginal of a function defined on the full spectrum of dit strings, given a sketch function that maps
-    each dit string to a value.
+    Compute marginals by multiplying the explicit sketch matrix by the full-spectrum value vector.
 
     Parameters
     ----------
-    full_sprectrum_values : list of float
-        The values of the function defined on the full spectrum of dit strings. The order of the values should correspond
-        to the order of the dit strings in the full spectrum.
-    sketch_function : function
-        A function that takes a dit string (as a list of integers) as input and returns a float value. This function is used to compute the marginal.
+    full_sprectrum_values : list of float or np.ndarray
+        Values of the function over the full spectrum, in lexicographic order.
+    sketch_function : np.ndarray
+        Sketch matrix (rows = constraints, columns = dit strings).
 
     Returns
     -------
-    float
-        The computed marginal value.
+    list of float
+        Marginal values, one per sketch row.
     """
     if not isinstance(full_sprectrum_values, (list, tuple, np.ndarray)):
         raise TypeError("full_sprectrum_values must be a sequence of numeric values.")
@@ -31,91 +37,94 @@ def compute_marginal(full_sprectrum_values, sketch_function):
         if sketch_function.shape[1] != values.shape[0]:
             raise ValueError("full_sprectrum_values length must match sketch_function column count.")
     y = sketch_function @ values
-
     return np.asarray(y).flatten().tolist()
 
-def nearest_neighbors_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2):
+
+def nearest_neighbors_interactions_sketch(
+    dit_string_length: int,
+    interaction_size: int,
+    dit_dimension: int = 2,
+) -> np.ndarray:
     """
-    Generate the sketch matrix corresponding to nearest neighbors interactions for a given dit string length, interaction size, and dit dimension.
+    Build the explicit sketch matrix for nearest-neighbor interactions.
 
     Parameters
     ----------
     dit_string_length : int
-        The length of the dit strings.
+        Length of the dit strings.
     interaction_size : int
-        The size of the interactions (i.e., the number of neighboring dits involved in each interaction).
+        Size of the interaction window.
     dit_dimension : int, optional
-        The dimension of the dits (i.e., the number of possible values each dit can take). The default is 2.
+        Number of possible dit values. Default is 2.
 
     Returns
     -------
     np.ndarray
-        The sketch matrix corresponding to nearest neighbors interactions.
+        Sketch matrix of shape (n_constraints, dit_dimension**dit_string_length).
     """
-
-    if not isinstance(dit_string_length, int) or dit_string_length <= 0:
-        raise ValueError("dit_string_length must be a positive integer.")
-    if not isinstance(interaction_size, int) or interaction_size <= 0:
-        raise ValueError("interaction_size must be a positive integer.")
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size cannot be greater than dit_string_length.")
-    if not isinstance(dit_dimension, int) or dit_dimension <= 1:
-        raise ValueError("dit_dimension must be an integer greater than 1.")
 
     cylinder_sets = []
-    constrained_dits_indices = [tuple(range(dits_indices, dits_indices + interaction_size)) for dits_indices in range(dit_string_length - interaction_size + 1)]
+    constrained_dits_indices = [
+        tuple(range(i, i + interaction_size))
+        for i in range(dit_string_length - interaction_size + 1)
+    ]
     for constraint_dits in constrained_dits_indices:
         cylinder_sets += ds.create_cylinder_set_indicator(constraint_dits, dit_string_length, dit_dimension)
 
-    A = []
-    for set in cylinder_sets:
-        A.append(ds.kronecker_develop(set,))
-
+    A = [ds.kronecker_develop(s) for s in cylinder_sets]
     return np.array(A)
 
-def all_interactions_sketch(dit_string_length, interaction_size, dit_dimension=2):
+
+def all_interactions_sketch(
+    dit_string_length: int,
+    interaction_size: int,
+    dit_dimension: int = 2,
+) -> np.ndarray:
     """
-    Generate the sketch matrix corresponding to all interactions for a given dit string length, interaction size, and dit dimension.
+    Build the explicit sketch matrix for all (non-consecutive) interactions.
 
     Parameters
     ----------
     dit_string_length : int
-        The length of the dit strings.
+        Length of the dit strings.
     interaction_size : int
-        The size of the interactions (i.e., the number of neighboring dits involved in each interaction).
+        Size of the interaction.
     dit_dimension : int, optional
-        The dimension of the dits (i.e., the number of possible values each dit can take). The default is 2.
-    
+        Number of possible dit values. Default is 2.
+
     Returns
     -------
     np.ndarray
-        The sketch matrix corresponding to all interactions.
+        Sketch matrix of shape (n_constraints, dit_dimension**dit_string_length).
     """
-
-    if not isinstance(dit_string_length, int) or dit_string_length <= 0:
-        raise ValueError("dit_string_length must be a positive integer.")
-    if not isinstance(interaction_size, int) or interaction_size <= 0:
-        raise ValueError("interaction_size must be a positive integer.")
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size cannot be greater than dit_string_length.")
-    if not isinstance(dit_dimension, int) or dit_dimension <= 1:
-        raise ValueError("dit_dimension must be an integer greater than 1.")
 
     cylinder_sets = []
     constrained_dits_indices = itertools.combinations(range(dit_string_length), interaction_size)
     for constraint_dits in constrained_dits_indices:
         cylinder_sets += ds.create_cylinder_set_indicator(constraint_dits, dit_string_length, dit_dimension)
 
-    A = []
-    for set in cylinder_sets:
-        A.append(ds.kronecker_develop(set,))
-
+    A = [ds.kronecker_develop(s) for s in cylinder_sets]
     return np.array(A)
 
 
-def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
+def random_sketch(
+    dit_string_length: int,
+    m: int,
+    dit_dimension: int = 2,
+    random_state: int | np.random.Generator | None = None,
+) -> np.ndarray:
     """
-    Generate a random Gaussian sketch matrix typical of compressive sensing.
+    Generate a random Gaussian sketch matrix.
 
     Parameters
     ----------
@@ -124,23 +133,18 @@ def random_sketch(dit_string_length, m, dit_dimension=2, random_state=None):
     m : int
         Number of sketch rows (measurements).
     dit_dimension : int, optional
-        Dimension of each dit, by default 2.
-    random_state : int | np.random.Generator | None, optional
-        Seed or numpy Generator for reproducibility. If None, use NumPy default RNG.
+        Dimension of each dit. Default is 2.
+    random_state : int, np.random.Generator, or None, optional
+        Seed or Generator for reproducibility.
 
     Returns
     -------
     np.ndarray
-        Random matrix of shape ``(m, dit_dimension ** dit_string_length)`` with
-        i.i.d. entries sampled from ``N(0, 1/m)``.
+        Random matrix of shape (m, dit_dimension**dit_string_length) with i.i.d. N(0, 1/m) entries.
     """
-
-    if not isinstance(dit_string_length, Integral) or isinstance(dit_string_length, bool) or dit_string_length <= 0:
-        raise ValueError("dit_string_length must be a positive integer.")
-    if not isinstance(m, Integral) or isinstance(m, bool) or m <= 0:
-        raise ValueError("m must be a positive integer.")
-    if not isinstance(dit_dimension, Integral) or isinstance(dit_dimension, bool) or dit_dimension <= 1:
-        raise ValueError("dit_dimension must be an integer greater than 1.")
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    m = ensure_int("m", m, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
 
     n = int(dit_dimension) ** int(dit_string_length)
 

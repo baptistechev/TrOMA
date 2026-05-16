@@ -1,42 +1,44 @@
+from __future__ import annotations
+
 import itertools
-from numbers import Integral, Real
+from typing import Any
+
 import numpy as np
 
 from ..core.data_structure import integer_to_dit_string
-
-def _validate_positive_int(name, value, *, min_value=1):
-    if not isinstance(value, Integral) or isinstance(value, bool):
-        raise TypeError(f"{name} must be an integer.")
-    if value < min_value:
-        raise ValueError(f"{name} must be >= {min_value}.")
+from .._validation import ensure_int, ensure_sequence, ensure_dict
 
 
-def _validate_constraint_dict(constraint, dit_string_length, dit_dimension):
-    if not isinstance(constraint, dict):
-        raise TypeError("Each constraint must be a dict or a full dit assignment sequence.")
+def _validate_constraint_dict(constraint: dict, dit_string_length: int, dit_dimension: int) -> None:
+    ensure_dict("constraint", constraint)
     for dit_idx, dit_val in constraint.items():
-        if not isinstance(dit_idx, Integral) or isinstance(dit_idx, bool):
-            raise TypeError("Constraint indices must be integers.")
-        if dit_idx < 0 or dit_idx >= dit_string_length:
+        ensure_int("constraint index", dit_idx)
+        if int(dit_idx) < 0 or int(dit_idx) >= dit_string_length:
             raise ValueError("Constraint index out of range for dit string length.")
-        if not isinstance(dit_val, Integral) or isinstance(dit_val, bool):
-            raise TypeError("Constraint values must be integers.")
-        if dit_val < 0 or dit_val >= dit_dimension:
+        ensure_int("constraint value", dit_val)
+        if int(dit_val) < 0 or int(dit_val) >= dit_dimension:
             raise ValueError("Constraint values must be in [0, dit_dimension - 1].")
 
 
-def _validate_full_assignment(constraint, dit_string_length, dit_dimension):
-    if not isinstance(constraint, (list, tuple, np.ndarray)):
-        raise TypeError("A full dit assignment must be a sequence of integers.")
+def _validate_full_assignment(
+    constraint: list | tuple | np.ndarray,
+    dit_string_length: int,
+    dit_dimension: int,
+) -> None:
+    ensure_sequence("full assignment", constraint)
     if len(constraint) != dit_string_length:
         raise ValueError("A full dit assignment must have length dit_string_length.")
     for dit_val in constraint:
-        if not isinstance(dit_val, Integral) or isinstance(dit_val, bool):
-            raise TypeError("Full-assignment values must be integers.")
-        if dit_val < 0 or dit_val >= dit_dimension:
+        ensure_int("full-assignment value", dit_val)
+        if int(dit_val) < 0 or int(dit_val) >= dit_dimension:
             raise ValueError("Full-assignment values must be in [0, dit_dimension - 1].")
 
-def compute_marginal(function_input_dits, function_values, dit_constraints):
+
+def compute_marginal(
+    function_input_dits: list | tuple | np.ndarray,
+    function_values: list | tuple | np.ndarray,
+    dit_constraints: dict | list | tuple | np.ndarray,
+) -> float | list[float]:
     """
     Compute marginals of a sparse spectrum on one or several dit constraints.
 
@@ -49,9 +51,9 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
     Parameters
     ----------
     function_input_dits : list or ndarray
-        List of function inputs, each input is given in dits representation.
+        List of function inputs, each given in dit representation.
     function_values : list or ndarray
-        Image of the function associated with each input.
+        Function values corresponding to each input.
     dit_constraints : dict | sequence | list[dict | sequence]
         One constraint or several constraints.
 
@@ -60,6 +62,7 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
     float or list of float
         Sum(s) of values for states matching each provided constraint.
     """
+    from numbers import Integral, Real
 
     if not isinstance(function_input_dits, (list, tuple, np.ndarray)):
         raise TypeError("function_input_dits must be a sequence of dit sequences.")
@@ -82,8 +85,7 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
         if len(state) != dit_string_length:
             raise ValueError("All states in function_input_dits must have the same length.")
         for dit_val in state:
-            if not isinstance(dit_val, Integral) or isinstance(dit_val, bool):
-                raise TypeError("State values in function_input_dits must be integers.")
+            ensure_int("state value", dit_val)
 
     for value in function_values:
         if not isinstance(value, Real) or isinstance(value, bool):
@@ -92,8 +94,7 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
     max_dit_value = max(int(v) for state in function_input_dits for v in state)
     dit_dimension = max_dit_value + 1
 
-    def _single_marginal(constraint):
-        # Sparse constraint: only constrained indices are given.
+    def _single_marginal(constraint: Any) -> float:
         if isinstance(constraint, dict):
             _validate_constraint_dict(constraint, dit_string_length, dit_dimension)
             items = list(constraint.items())
@@ -103,7 +104,6 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
             ]
             return float(np.sum(filtered_vals) if filtered_vals else 0.0)
 
-        # Full dit assignment: all indices are constrained.
         _validate_full_assignment(constraint, dit_string_length, dit_dimension)
         dit_values = list(constraint)
         filtered_vals = [
@@ -112,123 +112,130 @@ def compute_marginal(function_input_dits, function_values, dit_constraints):
         ]
         return float(np.sum(filtered_vals) if filtered_vals else 0.0)
 
-    # Single sparse constraint.
     if isinstance(dit_constraints, dict):
         return _single_marginal(dit_constraints)
 
-    # Handle ndarray explicitly (to avoid ambiguous iteration behavior).
     if isinstance(dit_constraints, np.ndarray):
         if dit_constraints.ndim == 1:
             return _single_marginal(dit_constraints.tolist())
         return [_single_marginal(c) for c in dit_constraints.tolist()]
 
-    # Handle list/tuple input.
     if isinstance(dit_constraints, (list, tuple)):
         if not dit_constraints:
             return []
-
-        # If it looks like one full dit assignment (list/tuple of scalars), return one float.
         if all(np.isscalar(x) for x in dit_constraints):
             return _single_marginal(dit_constraints)
-
-        # Otherwise, interpret as multiple constraints.
         return [_single_marginal(c) for c in dit_constraints]
 
     raise TypeError(
         "dit_constraints must be a dict, a full dit assignment, or a list of constraints."
     )
 
-def constraints_for_nearest_neighbors_interactions(dit_string_length, interaction_size, dit_dimension=2):
-    """ 
-    Compute constraints for nearest neighbor interactions and bit values, for a given interaction size.
+
+def constraints_for_nearest_neighbors_interactions(
+    dit_string_length: int,
+    interaction_size: int,
+    dit_dimension: int = 2,
+) -> list[dict[int, int]]:
+    """
+    Compute constraints for nearest-neighbor interactions.
 
     Parameters
     ----------
     dit_string_length : int
-        The length of the dit string (number of dits in the string).
+        Length of the dit string.
     interaction_size : int
-        The size of the interaction (number of nearest neighbors to consider).
+        Size of the interaction window.
     dit_dimension : int, optional
-        The dimension of the dits (number of possible values for each dit), by default 2.
-        
+        Number of possible dit values. Default is 2.
+
     Returns
     -------
-    list
-        List of all dit constraints corresponding to each nearest neighbor interaction and bit value combination.
+    list of dict
+        List of dit constraints as {position: value} dicts.
     """
-
-    _validate_positive_int("dit_string_length", dit_string_length)
-    _validate_positive_int("interaction_size", interaction_size)
-    _validate_positive_int("dit_dimension", dit_dimension)
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=1)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size must be <= dit_string_length.")
 
-    all_dits_constraints = []
-    
-    # Generate all combinations of nearest neighbors and their values
-    constrained_dits_indices = [tuple(range(dits_indices, dits_indices + interaction_size)) for dits_indices in range(dit_string_length - interaction_size + 1)]
+    all_dits_constraints: list[dict[int, int]] = []
+    constrained_dits_indices = [
+        tuple(range(i, i + interaction_size))
+        for i in range(dit_string_length - interaction_size + 1)
+    ]
     for constraint_dits in constrained_dits_indices:
         for constraint_values in itertools.product(range(dit_dimension), repeat=interaction_size):
-            all_dits_constraints += [dict(zip(constraint_dits, constraint_values))]
+            all_dits_constraints.append(dict(zip(constraint_dits, constraint_values)))
     return all_dits_constraints
 
 
-def constraints_for_all_interactions(dit_string_length, interaction_size, dit_dimension=2):
-    """ 
-    Compute constraints for all interactions and bit values, for a given interaction size.
+def constraints_for_all_interactions(
+    dit_string_length: int,
+    interaction_size: int,
+    dit_dimension: int = 2,
+) -> list[dict[int, int]]:
+    """
+    Compute constraints for all (non-consecutive) interactions.
 
     Parameters
     ----------
     dit_string_length : int
-        The length of the dit string (number of dits in the string).
+        Length of the dit string.
     interaction_size : int
-        The size of the interaction (number of neighbors to consider).
+        Size of the interaction.
     dit_dimension : int, optional
-        The dimension of the dits (number of possible values for each dit), by default 2.
-        
+        Number of possible dit values. Default is 2.
+
     Returns
     -------
-    list
-        List of all dit constraints corresponding to each interaction and bit value combination.
+    list of dict
+        List of dit constraints as {position: value} dicts.
     """
-
-    _validate_positive_int("dit_string_length", dit_string_length)
-    _validate_positive_int("interaction_size", interaction_size)
-    _validate_positive_int("dit_dimension", dit_dimension)
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=1)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size must be <= dit_string_length.")
 
-    all_dits_constraints = []
-    
-    # Generate all combinations of neighbors and their values
+    all_dits_constraints: list[dict[int, int]] = []
     constrained_dits_indices = itertools.combinations(range(dit_string_length), interaction_size)
     for constraint_dits in constrained_dits_indices:
         for constraint_values in itertools.product(range(dit_dimension), repeat=interaction_size):
-            all_dits_constraints += [dict(zip(constraint_dits, constraint_values))]
+            all_dits_constraints.append(dict(zip(constraint_dits, constraint_values)))
     return all_dits_constraints
 
-def reconstruct_structured_matrix_column(index, dit_constraints, dit_string_length,dit_dimension=2):
+
+def reconstruct_structured_matrix_column(
+    index: int,
+    dit_constraints: list[dict],
+    dit_string_length: int,
+    dit_dimension: int = 2,
+) -> np.ndarray:
     """
-    Reconstruct a column of a structured matrix made of cylinder set indicators defined by the dit constraints, and given the element index.
-    
+    Reconstruct a column of the structured cylinder-set indicator matrix.
+
     Parameters
     ----------
     index : int
-        The index of the element to check.
+        Index of the dit string.
     dit_constraints : list of dict
-        List of dit constraints given as dictionaries to check.
-        
+        Dit constraints as {position: value} dicts.
+    dit_string_length : int
+        Length of the dit string.
+    dit_dimension : int, optional
+        Number of possible dit values. Default is 2.
+
     Returns
     -------
-    numpy array of bool
-        The column of the structured matrix corresponding to this index, i.e. a list indicating whether the element satisfies each dit constraint or not.
+    np.ndarray
+        Boolean column vector indicating which constraints the dit string satisfies.
     """
-
-    _validate_positive_int("index", index, min_value=0)
-    _validate_positive_int("dit_string_length", dit_string_length)
-    _validate_positive_int("dit_dimension", dit_dimension)
-    if not isinstance(dit_constraints, (list, tuple)):
-        raise TypeError("dit_constraints must be a list or tuple of dictionaries.")
+    index = ensure_int("index", index, min_value=0)
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=1)
+    ensure_sequence("dit_constraints", dit_constraints)
 
     max_index = dit_dimension ** dit_string_length
     if index >= max_index:
@@ -238,7 +245,7 @@ def reconstruct_structured_matrix_column(index, dit_constraints, dit_string_leng
         _validate_constraint_dict(constraint, dit_string_length, dit_dimension)
 
     dit_str = integer_to_dit_string(index, dit_string_length, dit_dimension=dit_dimension)
-    column = []
+    column: list[int] = []
     for constraint in dit_constraints:
         for dit_idx, dit_val in enumerate(dit_str):
             if dit_idx in constraint:

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 from numbers import Real
 
@@ -10,10 +14,10 @@ from qiskit import transpile
 from ..sketchs import abstract as ab
 from ..core import data_structure as ds
 from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
-from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
+from .._validation import ensure_int, ensure_real, ensure_str, ensure_optional_dict, ensure_sequence
 
 
-def digital_annealing(marginals, number_iter=1000):
+def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 1000) -> int:
     """
     Perform digital annealing to find a solution to the optimization problem defined by the marginals.
     Only work for QUBO problems, i.e., when marginals are defined on nearest neighbor pairs of bits.
@@ -31,8 +35,7 @@ def digital_annealing(marginals, number_iter=1000):
     int
         The index of the dit string that maximizes the sum of the marginals.
     """
-    _ensure_iterable("marginals", marginals)
-    number_iter = _ensure_int("number_iter", number_iter, min_value=1)
+    number_iter = ensure_int("number_iter", number_iter, min_value=1)
     marginals = list(marginals)
     if len(marginals) == 0 or len(marginals) % 4 != 0:
         raise ValueError("marginals length must be a positive multiple of 4 for nearest-neighbor QUBO marginals.")
@@ -52,7 +55,16 @@ def digital_annealing(marginals, number_iter=1000):
     return ds.dit_string_to_integer(config)
 
 
-def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method="COBYLA", sampler=None, number_shots=4096, optimizer_options=None):
+def QAOA(
+    marginals: list[float] | np.ndarray,
+    bit_constraints: list,
+    bit_string_length: int,
+    number_layers: int = 4,
+    method: str = "COBYLA",
+    sampler: Any | None = None,
+    number_shots: int = 4096,
+    optimizer_options: dict | None = None,
+) -> int:
     """
     Perform Quantum Approximate Optimization Algorithm (QAOA) to find a solution to the optimization problem defined by the marginals and constraints.
     The function assumes that the optimization problem can be mapped to a Hamiltonian defined on qubits, where the terms in the Hamiltonian correspond to the patterns in the constraints_sketch.
@@ -86,21 +98,17 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
 
     #Security checks on the inputs
     #-----------------------------
-    _ensure_iterable("marginals", marginals)
     marginals = list(marginals)
-    if not isinstance(bit_constraints, (list, tuple)):
-        raise TypeError("bit_constraints must be a list or tuple of constraints.")
+    bit_constraints = ensure_sequence("bit_constraints", bit_constraints)
     if len(bit_constraints) == 0:
         raise ValueError("bit_constraints must be non-empty.")
     if len(marginals) != len(bit_constraints):
         raise ValueError("marginals and bit_constraints must have the same length.")
-    bit_string_length = _ensure_int("bit_string_length", bit_string_length, min_value=1)
-    number_layers = _ensure_int("number_layers", number_layers, min_value=1)
-    number_shots = _ensure_int("number_shots", number_shots, min_value=1)
-    if not isinstance(method, str):
-        raise TypeError("method must be a string.")
-    if optimizer_options is not None and not isinstance(optimizer_options, dict):
-        raise TypeError("optimizer_options must be a dict or None.")
+    bit_string_length = ensure_int("bit_string_length", bit_string_length, min_value=1)
+    number_layers = ensure_int("number_layers", number_layers, min_value=1)
+    number_shots = ensure_int("number_shots", number_shots, min_value=1)
+    ensure_str("method", method)
+    ensure_optional_dict("optimizer_options", optimizer_options)
     #-----------------------------
     
 
@@ -110,24 +118,18 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
         sampler = SamplerV2(mode=backend, options={"default_shots": number_shots})
     sampler.options.default_shots = number_shots
 
-    def _objective_function(config):
+    def _objective_function(config: Any) -> float:
         if isinstance(config, str):
             config = [int(bit) for bit in config]
         config_index = ds.dit_string_to_integer(config, convention='L')
         return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
 
-    def _bind_qaoa_parameters(circuit,theta):
-        """
-        Bind the QAOA circuit parameters to specific values of beta and gamma
-        """
-
+    def _bind_qaoa_parameters(circuit: Any, theta: Any) -> Any:
         beta_parameters = circuit.metadata["beta_parameters"]
         gamma_parameters = circuit.metadata["gamma_parameters"]
-
         theta = np.asarray(theta, dtype=float).ravel()
         if theta.size != 2 * number_layers:
             raise ValueError("theta length must match 2 * number_layers.")
-
         beta_values = theta[:number_layers]
         gamma_values = theta[number_layers:]
         parameter_map = {
@@ -135,31 +137,24 @@ def QAOA(marginals, bit_constraints, bit_string_length, number_layers=4, method=
             for parameter, value in zip(beta_parameters, beta_values)
         }
         parameter_map.update(
-            {
-                parameter: float(value)
-                for parameter, value in zip(gamma_parameters, gamma_values)
-            }
+            {parameter: float(value) for parameter, value in zip(gamma_parameters, gamma_values)}
         )
         return circuit.assign_parameters(parameter_map, inplace=False)
 
-    def _get_count_from_backend(sampler, circuit):
+    def _get_count_from_backend(sampler: Any, circuit: Any) -> dict:
         job = sampler.run([circuit])
         result = job.result()
         return result[0].data.meas.get_counts()
 
-    def _compute_expectation(counts):
-
+    def _compute_expectation(counts: dict) -> float:
         weighted_sum = 0
-
         for bitstring, shot_count in counts.items():
             objective_value = _objective_function(bitstring)
             weighted_sum += objective_value * shot_count
-
         total_shots = max(sum(counts.values()), 1)
         return weighted_sum / total_shots
 
-    def cost_function(theta):
-        #Bind the parameter
+    def cost_function(theta: np.ndarray) -> float:
         binded_circuit = _bind_qaoa_parameters(qaoa_circuit, theta)
 
         #Run the sampling on backend

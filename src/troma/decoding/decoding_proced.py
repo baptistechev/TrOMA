@@ -1,45 +1,50 @@
-import copy
-import numpy as np
+from __future__ import annotations
 
+import copy
+from typing import Any
+
+import numpy as np
 
 from ..sketchs import abstract as ab
 from ..optimization import optimizer as optimizer_api
-from .._validation import ensure_int as _ensure_int, ensure_iterable as _ensure_iterable
+from .._validation import ensure_int, ensure_sequence
 
-def _column_vector_to_array(vec):
-    _ensure_iterable("vec", vec)
+
+def _column_vector_to_array(vec: Any) -> np.ndarray:
     return np.asarray(vec).reshape(-1)
 
 
-def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, optimizer=None):
+def matchingpursuit_explicit(
+    marginals: list[float] | np.ndarray,
+    sketch: np.ndarray,
+    iteration_number: int,
+    step: float | None = None,
+    optimizer: Any | None = None,
+) -> np.ndarray:
     """
     Perform matching pursuit to find a sparse solution to the linear system defined by the sketch matrix and the marginals.
 
     Parameters
     ----------
     marginals : list of float
-        The marginals of the function defined on the full spectrum of dit strings. The order of the values should correspond
-        to the order of the dit strings in the full spectrum.
+        The marginals of the function defined on the full spectrum of dit strings.
     sketch : 2D numpy array
-        The sketch matrix, where each column corresponds to a dit string and each row corresponds to a marginal.
+        The sketch matrix.
     iteration_number : int
-        The number of iterations to perform in the matching pursuit algorithm.
+        The number of iterations to perform.
     step : float, optional
-        The step size for the matching pursuit algorithm. If None, an adaptive step size is used based on the projection of the residual onto the selected column of the sketch matrix. The default is None
+        The step size. If None, an adaptive step size is used.
     optimizer : Optimizer, optional
-        Instantiated optimizer implementing an ``optimize`` method.
-        If None, a default brute-force optimizer is instantiated.
-        The matching pursuit context (e.g. ``sketch``) is provided automatically.
+        Instantiated optimizer. If None, a brute-force optimizer is used.
 
     Returns
     -------
-    numpy array
-        A 2D numpy array where each row contains the index of a selected column from the sketch matrix and its corresponding coefficient in the sparse solution.
+    np.ndarray
+        2D array where each row is [column_index, coefficient].
     """
-    _ensure_iterable("marginals", marginals)
     if not hasattr(sketch, "__getitem__"):
         raise TypeError("sketch must be an indexable matrix-like object.")
-    iteration_number = _ensure_int("iteration_number", iteration_number, min_value=1)
+    iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
     if step is not None and not isinstance(step, (int, float)):
         raise TypeError("step must be a real number or None.")
 
@@ -48,25 +53,19 @@ def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, opt
     elif not hasattr(optimizer, "optimize"):
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
 
-    #Matching Pursuit, initialization
     r = copy.deepcopy(marginals)
     selections = []
 
     for _ in range(iteration_number):
-
-        # Find best matching atom
         t = optimizer.optimize(r, sketch=sketch)
-
         At = _column_vector_to_array(sketch[:, t])
 
-        if step == None:
-            # Adaptive step: projection of residual onto column A_t
+        if step is None:
             norm_sq = np.dot(At, At)
             alpha = np.dot(r, At) / norm_sq if norm_sq != 0 else 0.0
         else:
             alpha = step
 
-        # Update residual
         r -= alpha * At
         selections.append((t, alpha))
 
@@ -74,53 +73,47 @@ def matchingpursuit_explicit(marginals, sketch, iteration_number, step=None, opt
 
 
 def matchingpursuit_abstract(
-    marginals,
-    dit_constraints,
-    dit_string_length,
-    iteration_number,
-    step=None,
-    interaction_size=2,
-    dit_dimension=2,
-    optimizer=None,
-):
+    marginals: list[float] | np.ndarray,
+    dit_constraints: list[dict],
+    dit_string_length: int,
+    iteration_number: int,
+    step: float | None = None,
+    interaction_size: int = 2,
+    dit_dimension: int = 2,
+    optimizer: Any | None = None,
+) -> np.ndarray:
     """
-    Perform matching pursuit to find a sparse solution to the linear system defined by the sketch matrix and the marginals, using an abstract representation of the sketch matrix based on nearest neighbors interactions.
+    Perform matching pursuit using an abstract (implicit) sketch representation.
 
     Parameters
     ----------
     marginals : list of float
-        The marginals of the function defined on the full spectrum of dit strings. The order of the values should correspond
-        to the order of the dit strings in the full spectrum.
-    dit_constraints : list of tuples
-        The constraints on the dit strings, where each tuple represents a constraint on a subset of dits.
+        The marginals of the function.
+    dit_constraints : list of dict
+        The dit constraints.
     dit_string_length : int
         The length of the dit strings.
     iteration_number : int
-        The number of iterations to perform in the matching pursuit algorithm.
+        The number of iterations.
     step : float, optional
-        The step size for the matching pursuit algorithm. If None, an adaptive step size is used based on the projection of the residual onto the selected column of the sketch matrix. The default is None.
+        The step size. If None, adaptive.
     interaction_size : int, optional
-        The size of the interactions between the dits. The default is 2, which corresponds to
-        nearest neighbors interactions.
+        The interaction size. Default is 2.
     dit_dimension : int, optional
-        The dimension of the dits, i.e., the number of possible values each dit can take. The default is 2.
+        The dit dimension. Default is 2.
     optimizer : Optimizer, optional
-        Instantiated optimizer implementing an ``optimize`` method.
-        If None, a default spin-chain nearest-neighbor optimizer is instantiated.
-        The matching pursuit context (constraints, dimensions) is provided automatically.
+        Instantiated optimizer. If None, a spin-chain NN optimizer is used.
 
     Returns
     -------
-    numpy array
-        A 2D numpy array where each row contains the index of a selected column from the sketch matrix and its corresponding coefficient in the sparse solution.
+    np.ndarray
+        2D array where each row is [column_index, coefficient].
     """
-    _ensure_iterable("marginals", marginals)
-    if not isinstance(dit_constraints, (list, tuple)):
-        raise TypeError("dit_constraints must be a list or tuple.")
-    dit_string_length = _ensure_int("dit_string_length", dit_string_length, min_value=1)
-    iteration_number = _ensure_int("iteration_number", iteration_number, min_value=1)
-    interaction_size = _ensure_int("interaction_size", interaction_size, min_value=1)
-    dit_dimension = _ensure_int("dit_dimension", dit_dimension, min_value=2)
+    ensure_sequence("dit_constraints", dit_constraints)
+    dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
+    iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
+    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
+    dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
     if interaction_size > dit_string_length:
         raise ValueError("interaction_size must be <= dit_string_length.")
     if step is not None and not isinstance(step, (int, float)):
@@ -131,13 +124,10 @@ def matchingpursuit_abstract(
     elif not hasattr(optimizer, "optimize"):
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
 
-    #Matching Pursuit, initialization
     r = copy.deepcopy(marginals)
     selections = []
 
     for _ in range(iteration_number):
-
-        #Find best matching atom
         t = optimizer.optimize(
             r,
             dit_constraints=dit_constraints,
@@ -148,16 +138,14 @@ def matchingpursuit_abstract(
             bit_string_length=dit_string_length,
         )
 
-        At = ab.reconstruct_structured_matrix_column(t, dit_constraints, dit_string_length, dit_dimension) #column of the sketch matrix corresponding to the configuration conf
+        At = ab.reconstruct_structured_matrix_column(t, dit_constraints, dit_string_length, dit_dimension)
 
-        if step == None:
-            # Adaptive step: projection of residual onto column A_t
+        if step is None:
             norm_sq = np.dot(At, At)
             alpha = np.dot(r, At) / norm_sq if norm_sq != 0 else 0.0
         else:
             alpha = step
 
-        # Update residual
         r -= alpha * At
         selections.append((t, alpha))
 

@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import enum
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -143,14 +143,10 @@ class SketchMap(ABC):
         :meth:`build_from_nearest_neighbors`).
         """
     
-    def use_custom_sketch(self, custom_sketch):
-        """
-        """
+    def use_custom_sketch(self, custom_sketch: Any) -> None:
         self.map = custom_sketch
 
-    def set_interaction_size(self, interaction_size):
-        """
-        """
+    def set_interaction_size(self, interaction_size: int) -> None:
         self.interaction_size = interaction_size
 
     # ------------------------------------------------------------------
@@ -158,7 +154,7 @@ class SketchMap(ABC):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def compute_marginal(self, function_data):
+    def compute_marginal(self, function_data: Any) -> Any:
         """Compute marginals given function data and a sketch structure.
 
         Parameters
@@ -341,7 +337,7 @@ class ExplicitSketchMap(SketchMap):
     def random_sketch(
         self,
         size: int,
-        random_state=None,
+        random_state: int | np.random.Generator | None = None,
     ) -> np.ndarray:
         self.map = _random_sketch(
             self.sketch_length,

@@ -6,9 +6,9 @@ import inspect
 from importlib import import_module
 from typing import Any, Callable
 import numpy as np
-from ._validation import ensure_callable as _ensure_callable
 from .core.data_structure import integer_to_dit_string, dit_string_to_integer
 from .core.embedding import reverse_spectrum_restriction
+from ._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict, ensure_instance
 
 # Import for ProblemSketch support
 from .problem_sketch import ProblemSketch, RestrictedProblemSketch
@@ -157,13 +157,10 @@ class FunctionMatchingPursuit(MatchingPursuit):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        if not isinstance(name, str) or not name:
-            raise TypeError("name must be a non-empty string.")
-        _ensure_callable("function", function)
-        if not isinstance(default_args, tuple):
-            raise TypeError("default_args must be a tuple.")
-        if default_kwargs is not None and not isinstance(default_kwargs, dict):
-            raise TypeError("default_kwargs must be a dict or None.")
+        ensure_nonempty_str("name", name)
+        ensure_callable("function", function)
+        ensure_tuple("default_args", default_args)
+        ensure_optional_dict("default_kwargs", default_kwargs)
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -232,8 +229,7 @@ _MATCHING_PURSUIT_REGISTRY: dict[str, tuple[str, str]] = {
 
 
 def _load_module(module_name: str):
-    if not isinstance(module_name, str) or not module_name:
-        raise TypeError("module_name must be a non-empty string.")
+    ensure_nonempty_str("module_name", module_name)
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -243,8 +239,7 @@ def _load_module(module_name: str):
 
 
 def _resolve_matching_pursuit_function(name: str) -> MatchingPursuitFunction:
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    ensure_nonempty_str("name", name)
     key = name.lower()
     if key not in _MATCHING_PURSUIT_REGISTRY:
         raise ValueError(
@@ -294,8 +289,7 @@ def get_matching_pursuit(name: str) -> MatchingPursuit:
         - ``get_matching_pursuit("abstract")`` returns an adapter usable as
             ``mp.run(marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2)``.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    ensure_nonempty_str("name", name)
     function = _resolve_matching_pursuit_function(name)
     return FunctionMatchingPursuit(name=name.lower(), function=function)
 
@@ -323,8 +317,7 @@ def bind_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> MatchingPursu
     MatchingPursuit
         An instance of the requested matching-pursuit adapter with the specified default arguments.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    ensure_nonempty_str("name", name)
     matching_pursuit = get_matching_pursuit(name)
     if not isinstance(matching_pursuit, FunctionMatchingPursuit):
         return matching_pursuit
@@ -349,8 +342,7 @@ def run_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> Any:
     Any
         The result of the matching-pursuit function.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    ensure_nonempty_str("name", name)
     return get_matching_pursuit(name).run(*args, **kwargs)
 
 
@@ -409,8 +401,7 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
     MatchingPursuitResults
         Structured matching-pursuit result.
     """
-    if not isinstance(problem_sketch, ProblemSketch):
-        raise TypeError("problem_sketch must be an instance of ProblemSketch.")
+    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
     
     # Extract marginals from the problem sketch
     marginals = problem_sketch.sketch_values

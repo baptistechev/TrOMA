@@ -4,6 +4,8 @@ import numbers
 from collections.abc import Iterable
 from typing import Any
 
+import numpy as np
+
 
 def ensure_int(
     name: str,
@@ -35,6 +37,48 @@ def ensure_callable(name: str, value: Any) -> None:
         raise TypeError(f"{name} must be callable.")
 
 
+def ensure_str(name: str, value: Any) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string.")
+    return value
+
+
+def ensure_nonempty_str(name: str, value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string.")
+    return value
+
+
+def ensure_dict(name: str, value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be a dict.")
+    return value
+
+
+def ensure_tuple(name: str, value: Any) -> tuple:
+    if not isinstance(value, tuple):
+        raise TypeError(f"{name} must be a tuple.")
+    return value
+
+
+def ensure_sequence(name: str, value: Any) -> list:
+    """Validate that value is a list, tuple, or ndarray and return as list."""
+    if not isinstance(value, (list, tuple, np.ndarray)):
+        raise TypeError(f"{name} must be a sequence (list, tuple, or array).")
+    return list(value)
+
+
+def ensure_instance(name: str, value: Any, expected_type: type | tuple) -> Any:
+    """Validate that value is an instance of expected_type and return it."""
+    if not isinstance(value, expected_type):
+        if isinstance(expected_type, tuple):
+            type_names = " or ".join(t.__name__ for t in expected_type)
+        else:
+            type_names = expected_type.__name__
+        raise TypeError(f"{name} must be an instance of {type_names}.")
+    return value
+
+
 def ensure_iterable(name: str, value: Any, *, allow_str: bool = False) -> None:
     if isinstance(value, str) and not allow_str:
         raise TypeError(f"{name} must be an iterable (non-string).")
@@ -52,6 +96,12 @@ def ensure_optional_int(name: str, value: Any, *, min_value: int | None = None) 
     if value is None:
         return None
     return ensure_int(name, value, min_value=min_value)
+
+
+def ensure_optional_dict(name: str, value: Any) -> dict | None:
+    if value is None:
+        return None
+    return ensure_dict(name, value)
 
 
 def ensure_int_or_digit(
