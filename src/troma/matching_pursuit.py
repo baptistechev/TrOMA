@@ -6,7 +6,6 @@ import inspect
 from importlib import import_module
 from typing import Any, Callable
 import numpy as np
-from .core.data_structure import integer_to_dit_string
 from .core.structure import DitString
 from .core.embedding import reverse_spectrum_restriction
 from ._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict, ensure_instance
@@ -118,12 +117,7 @@ def _build_matching_pursuit_results(
     positions = raw[:, 0].astype(int) if raw.size > 0 else np.array([], dtype=int)
     values = raw[:, 1].astype(float) if raw.size > 0 else np.array([], dtype=float)
     dit_strings = [
-        integer_to_dit_string(
-            int(index),
-            dit_string_length=dit_string_length,
-            dit_dimension=dit_dimension,
-            convention="R",
-        )
+        DitString.from_integer(int(index), dit_string_length, dit_dimension)
         for index in positions
     ]
 

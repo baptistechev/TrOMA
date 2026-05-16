@@ -1,13 +1,10 @@
 from importlib.metadata import PackageNotFoundError, version
 
-# Import data_structure first (no circular dependencies)
+# Import data_structure utilities (cylinder-set helpers)
 from .core.data_structure import (
-	integer_to_dit_string,
-	dit_string_to_integer,
-	dit_string_to_computational_basis,
     create_cylinder_set_indicator,
     kronecker_develop,
-    belongs_to_cylinder_set
+    belongs_to_cylinder_set,
 )
 
 # Import embedding (depends on data_structure)
@@ -25,7 +22,7 @@ from .problem_sketch import ProblemSketch, CombinatorialProblemSketch, Restricte
 
 # Import combinatorial problem (depends on sketch_map)
 from .combinatorial_problem import CombinatorialProblem
-from .core.structure import Restriction, Sample
+from .core.structure import DitString, Restriction, Sample
 
 # Import optimization
 from .optimization.optimizer import (
@@ -65,9 +62,7 @@ except PackageNotFoundError:
 
 __all__ = [
 	"__version__",
-	"integer_to_dit_string",
-	"dit_string_to_integer",
-	"dit_string_to_computational_basis",
+	"DitString",
 	"create_cylinder_set_indicator",
     "kronecker_develop",
 	"belongs_to_cylinder_set",

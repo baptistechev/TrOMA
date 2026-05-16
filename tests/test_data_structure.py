@@ -5,99 +5,98 @@ from troma.core.structure import DitString
 from troma.core.data_structure import (
     belongs_to_cylinder_set,
     create_cylinder_set_indicator,
-    dit_string_to_computational_basis,
-    dit_string_to_integer,
-    integer_to_dit_string,
     kronecker_develop,
 )
 
 
-def test_integer_to_dit_string_basic_r_convention():
-    out = integer_to_dit_string(5, dit_dimension=2, dit_string_length=4, convention="R")
+# ---------------------------------------------------------------------------
+# DitString construction (replaces integer_to_dit_string)
+# ---------------------------------------------------------------------------
+
+def test_from_integer_basic_r_convention():
+    out = DitString.from_integer(5, length=4, dimension=2)
     assert isinstance(out, DitString)
     assert out.length == 4
     assert out.dimension == 2
     assert out.tolist() == [0, 1, 0, 1]
 
 
-def test_integer_to_dit_string_basic_l_convention():
-    out = integer_to_dit_string(5, dit_dimension=2, dit_string_length=4, convention="L")
-    assert isinstance(out, DitString)
+def test_from_integer_basic_l_convention():
+    out = DitString.from_integer(5, length=4, dimension=2, convention="L")
     assert out.tolist() == [1, 0, 1, 0]
 
 
-def test_integer_to_dit_string_roundtrip():
+def test_from_integer_roundtrip():
     for n in range(8):
-        ds = integer_to_dit_string(n, dit_string_length=3, dit_dimension=2)
+        ds = DitString.from_integer(n, length=3, dimension=2)
         assert ds.to_integer() == n
 
 
 @pytest.mark.parametrize(
     "kwargs,exc",
     [
-        ({"integer": -1, "dit_dimension": 2, "dit_string_length": 3}, ValueError),
-        ({"integer": 2.2, "dit_dimension": 2, "dit_string_length": 3}, TypeError),
-        ({"integer": 1, "dit_dimension": 1, "dit_string_length": 3}, ValueError),
-        ({"integer": 1, "dit_dimension": 2.0, "dit_string_length": 3}, TypeError),
-        ({"integer": 1, "dit_dimension": 2, "dit_string_length": -1}, ValueError),
-        ({"integer": 1, "dit_dimension": 2, "dit_string_length": 2.5}, TypeError),
-        ({"integer": 1, "dit_dimension": 2, "dit_string_length": 3, "convention": "X"}, ValueError),
-        ({"integer": 8, "dit_dimension": 2, "dit_string_length": 3}, ValueError),
-        ({"integer": 1, "dit_dimension": 2, "dit_string_length": 0}, ValueError),
+        ({"integer": -1, "length": 3, "dimension": 2}, ValueError),
+        ({"integer": 2.2, "length": 3, "dimension": 2}, TypeError),
+        ({"integer": 1, "length": 3, "dimension": 1}, ValueError),
+        ({"integer": 1, "length": 3, "dimension": 2.0}, TypeError),
+        ({"integer": 1, "length": 2.5, "dimension": 2}, TypeError),
+        ({"integer": 8, "length": 3, "dimension": 2}, ValueError),
+        ({"integer": 1, "length": 0, "dimension": 2}, ValueError),
     ],
 )
-def test_integer_to_dit_string_invalid_inputs(kwargs, exc):
+def test_from_integer_invalid_inputs(kwargs, exc):
     with pytest.raises(exc):
-        integer_to_dit_string(**kwargs)
+        DitString.from_integer(**kwargs)
 
 
-def test_dit_string_to_integer_roundtrip():
+# ---------------------------------------------------------------------------
+# DitString.to_integer (replaces dit_string_to_integer)
+# ---------------------------------------------------------------------------
+
+def test_to_integer_r_convention():
     ds = DitString([0, 1, 0, 1], dimension=2)
-    assert dit_string_to_integer(ds, convention="R") == 5
+    assert ds.to_integer(convention="R") == 5
 
 
-def test_dit_string_to_integer_l_convention():
+def test_to_integer_l_convention():
     ds = DitString([1, 0, 1, 0], dimension=2)
-    assert dit_string_to_integer(ds, convention="L") == 5
+    assert ds.to_integer(convention="L") == 5
 
 
-@pytest.mark.parametrize(
-    "args,exc",
-    [
-        # non-DitString input → TypeError
-        ((10,), TypeError),
-        (([0, 1],), TypeError),
-        # invalid convention → ValueError
-        ((DitString([0, 1], dimension=2), "X"), ValueError),
-    ],
-)
-def test_dit_string_to_integer_invalid_inputs(args, exc):
-    with pytest.raises(exc):
-        dit_string_to_integer(*args)
+def test_to_integer_ternary():
+    ds = DitString([1, 0, 2], dimension=3)
+    assert ds.to_integer() == 1 * 9 + 0 * 3 + 2
 
 
-def test_dit_string_to_computational_basis_binary():
-    out = dit_string_to_computational_basis(DitString([0, 1, 0], dimension=2))
+def test_to_integer_empty():
+    ds = DitString([], dimension=2)
+    assert ds.to_integer() == 0
+
+
+# ---------------------------------------------------------------------------
+# DitString.to_computational_basis (replaces dit_string_to_computational_basis)
+# ---------------------------------------------------------------------------
+
+def test_to_computational_basis_binary():
+    out = DitString([0, 1, 0], dimension=2).to_computational_basis()
     assert out == [[1, 0], [0, 1], [1, 0]]
 
 
-def test_dit_string_to_computational_basis_ternary():
-    out = dit_string_to_computational_basis(DitString([0, 2, 1], dimension=3))
+def test_to_computational_basis_ternary():
+    out = DitString([0, 2, 1], dimension=3).to_computational_basis()
     assert out == [[1, 0, 0], [0, 0, 1], [0, 1, 0]]
 
 
-@pytest.mark.parametrize(
-    "args,exc",
-    [
-        # non-DitString → TypeError
-        ((10,), TypeError),
-        (([0, 1],), TypeError),
-    ],
-)
-def test_dit_string_to_computational_basis_invalid_inputs(args, exc):
-    with pytest.raises(exc):
-        dit_string_to_computational_basis(*args)
+def test_to_computational_basis_length_matches():
+    ds = DitString([0, 1, 0, 1], dimension=2)
+    out = ds.to_computational_basis()
+    assert len(out) == ds.length
+    assert all(len(v) == ds.dimension for v in out)
 
+
+# ---------------------------------------------------------------------------
+# create_cylinder_set_indicator
+# ---------------------------------------------------------------------------
 
 def test_create_cylinder_set_indicator_binary_shape_and_content():
     out = create_cylinder_set_indicator(fixed_dit_positions=[0, 2], set_size=4, dit_dimension=2)
@@ -123,6 +122,10 @@ def test_create_cylinder_set_indicator_invalid_inputs(args, exc):
         create_cylinder_set_indicator(*args)
 
 
+# ---------------------------------------------------------------------------
+# kronecker_develop
+# ---------------------------------------------------------------------------
+
 def test_kronecker_develop_binary_r_and_l():
     cylinder_set = [[1, 0], [0, 1]]
     out_r = kronecker_develop(cylinder_set, dit_dimension=2, convention="R")
@@ -146,6 +149,10 @@ def test_kronecker_develop_invalid_inputs(args, exc):
     with pytest.raises(exc):
         kronecker_develop(*args)
 
+
+# ---------------------------------------------------------------------------
+# belongs_to_cylinder_set
+# ---------------------------------------------------------------------------
 
 def test_belongs_to_cylinder_set_member():
     element = [[1, 0], [0, 1]]

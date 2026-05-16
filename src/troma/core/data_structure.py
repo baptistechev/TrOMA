@@ -4,103 +4,8 @@ from collections.abc import Iterable
 
 import numpy as np
 
-from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_instance
+from .._validation import ensure_int, ensure_str, ensure_unique_items
 from .structure import DitString
-
-
-def integer_to_dit_string(
-    integer: int,
-    dit_string_length: int,
-    dit_dimension: int = 2,
-    convention: str = "R",
-) -> DitString:
-    """Encode an integer into a fixed-length dit string.
-
-    Parameters
-    ----------
-    integer : int
-        Non-negative integer to encode.
-    dit_string_length : int
-        Target length of the output dit string.
-    dit_dimension : int, optional
-        Dit base (2 = binary, 3 = ternary, …), by default 2.
-    convention : str, optional
-        ``"R"`` — most-significant dit first (default).
-        ``"L"`` — least-significant dit first.
-
-    Returns
-    -------
-    DitString
-        Encoded dit string with ``length=dit_string_length`` and
-        ``dimension=dit_dimension``.
-    """
-    integer = ensure_int("integer", integer)
-    dit_dimension = ensure_int("dit_dimension", dit_dimension)
-    dit_string_length = ensure_int("dit_string_length", dit_string_length)
-    ensure_str("convention", convention)
-    if dit_dimension < 2:
-        raise ValueError("dit_dimension must be >= 2.")
-    if dit_string_length < 0:
-        raise ValueError("dit_string_length must be >= 0.")
-    if integer < 0:
-        raise ValueError("integer must be >= 0.")
-    if convention not in ("R", "L"):
-        raise ValueError("convention must be 'R' or 'L'.")
-    if integer > 0 and dit_string_length == 0:
-        raise ValueError("dit_string_length must be positive to encode a non-zero integer.")
-    if dit_string_length > 0 and integer >= dit_dimension ** dit_string_length:
-        raise ValueError("integer cannot be represented with the given dit_dimension and dit_string_length.")
-
-    return DitString.from_integer(integer, dit_string_length, dit_dimension, convention)
-
-
-def dit_string_to_integer(
-    dit_string: DitString,
-    convention: str = "R",
-) -> int:
-    """Decode a :class:`DitString` into its integer index.
-
-    Parameters
-    ----------
-    dit_string : DitString
-        The dit string to decode. Its ``dimension`` attribute determines the base.
-    convention : str, optional
-        ``"R"`` — most-significant dit first (default).
-        ``"L"`` — least-significant dit first.
-
-    Returns
-    -------
-    int
-        Decoded integer.
-    """
-    ensure_instance("dit_string", dit_string, DitString)
-    ensure_str("convention", convention)
-    if convention not in ("R", "L"):
-        raise ValueError("convention must be 'R' or 'L'.")
-    return dit_string.to_integer(convention)
-
-
-def dit_string_to_computational_basis(dit_string: DitString) -> list[list[int]]:
-    """Convert a :class:`DitString` into one-hot computational basis vectors.
-
-    Parameters
-    ----------
-    dit_string : DitString
-        The dit string to convert. Its ``dimension`` attribute determines the
-        length of each one-hot vector.
-
-    Returns
-    -------
-    list[list[int]]
-        One-hot vector for each dit value.
-    """
-    ensure_instance("dit_string", dit_string, DitString)
-    cp_representation: list[list[int]] = []
-    for value in dit_string:
-        cp_vector = [0] * dit_string.dimension
-        cp_vector[value] = 1
-        cp_representation.append(cp_vector)
-    return cp_representation
 
 
 def create_cylinder_set_indicator(
@@ -144,7 +49,7 @@ def create_cylinder_set_indicator(
     list_cylinder_sets: list[list[list[int]]] = []
     n_positions = len(fixed_positions)
     for config in range(dit_dimension ** n_positions):
-        dits = integer_to_dit_string(config, dit_string_length=n_positions, dit_dimension=dit_dimension)
+        dits = DitString.from_integer(config, n_positions, dit_dimension)
         cylinder_set = [[1] * dit_dimension for _ in range(set_size)]
         for position, dit_value in zip(fixed_positions, dits):
             cp_vector = [0] * dit_dimension

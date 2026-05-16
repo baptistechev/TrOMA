@@ -5,9 +5,8 @@ from typing import Any
 
 import numpy as np
 
-from ..core import data_structure as ds
 from ..optimization.optimizer import get_optimizer
-from .structure import Restriction, Sample
+from .structure import DitString, Restriction, Sample
 from .embedding import reverse_spectrum_restriction
 from .._validation import ensure_callable, ensure_int, ensure_optional_dict
 
@@ -21,7 +20,7 @@ def _basic_sampling(
     rng = np.random.default_rng()
     sample_indexes = rng.integers(0, total_states, size=number_samples, dtype=np.int64)
     sample_dit_strings = [
-        ds.integer_to_dit_string(int(index), dit_string_length, dit_dimension)
+        DitString.from_integer(int(index), dit_string_length, dit_dimension)
         for index in sample_indexes
     ]
     return sample_indexes, sample_dit_strings

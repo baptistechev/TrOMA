@@ -8,7 +8,6 @@ import numpy as np
 import scipy.optimize as scipy_opt
 
 from ..sketchs import abstract as ab
-from ..core import data_structure as ds
 from ..core.structure import DitString
 from .._validation import ensure_int, ensure_real, ensure_sequence, ensure_optional_dict
 
@@ -87,7 +86,7 @@ def spin_chain_nn_max(
     state_size = interaction_size - 1
     n_states = dit_dimension ** state_size
     states = [
-        tuple(ds.integer_to_dit_string(i, state_size, dit_dimension=dit_dimension))
+        tuple(DitString.from_integer(i, state_size, dit_dimension))
         for i in range(n_states)
     ]
 

@@ -6,7 +6,6 @@ from typing import Any
 
 import numpy as np
 
-from ..core.data_structure import integer_to_dit_string
 from ..core.structure import DitString
 from .._validation import ensure_int, ensure_sequence, ensure_dict, ensure_instance
 
@@ -240,7 +239,7 @@ def reconstruct_structured_matrix_column(
     for constraint in dit_constraints:
         _validate_constraint_dict(constraint, dit_string_length, dit_dimension)
 
-    dit_str = integer_to_dit_string(index, dit_string_length, dit_dimension=dit_dimension)
+    dit_str = DitString.from_integer(index, dit_string_length, dit_dimension)
     column: list[int] = []
     for constraint in dit_constraints:
         for dit_idx, dit_val in enumerate(dit_str):

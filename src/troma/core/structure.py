@@ -134,6 +134,21 @@ class DitString:
         """Return the dit string as a plain Python list."""
         return list(self.dit_string)
 
+    def to_computational_basis(self) -> list[list[int]]:
+        """Convert to one-hot computational basis vectors.
+
+        Returns
+        -------
+        list[list[int]]
+            A list of ``dimension``-length one-hot vectors, one per dit.
+        """
+        result: list[list[int]] = []
+        for value in self.dit_string:
+            vec = [0] * self.dimension
+            vec[value] = 1
+            result.append(vec)
+        return result
+
     # ------------------------------------------------------------------
     # Hashing and equality (needed for use as dict keys)
     # ------------------------------------------------------------------
