@@ -14,6 +14,7 @@ from qiskit import transpile
 from ..sketchs import abstract as ab
 from ..core import data_structure as ds
 from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
+from ..core.structure import DitString
 from .._validation import ensure_int, ensure_real, ensure_str, ensure_optional_dict, ensure_sequence
 
 
@@ -52,7 +53,7 @@ def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 10
     sampler = neal.SimulatedAnnealingSampler()
     sampleset = sampler.sample_ising(h, J, num_reads=number_iter)
     config = [int((1-j)/2) for i,j in sampleset.first.sample.items()]
-    return ds.dit_string_to_integer(config)
+    return DitString(config, dimension=2).to_integer()
 
 
 def QAOA(
@@ -121,7 +122,7 @@ def QAOA(
     def _objective_function(config: Any) -> float:
         if isinstance(config, str):
             config = [int(bit) for bit in config]
-        config_index = ds.dit_string_to_integer(config, convention='L')
+        config_index = DitString(list(config), dimension=2).to_integer('L')
         return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
 
     def _bind_qaoa_parameters(circuit: Any, theta: Any) -> Any:
@@ -193,4 +194,4 @@ def QAOA(
     optimal_theta = res.x
     best_conf = sample_best_state(qaoa_circuit, optimal_theta)
 
-    return ds.dit_string_to_integer([int(bit) for bit in best_conf], convention='L')
+    return DitString([int(bit) for bit in best_conf], dimension=2).to_integer('L')

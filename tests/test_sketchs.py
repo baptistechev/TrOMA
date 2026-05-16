@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from troma import ConstraintSketchMap, ExplicitSketchMap
+from troma.core.structure import DitString
 from troma.sketchs import (
     constraint_compute_marginal,
     constraints_for_all_interactions,
@@ -34,7 +35,12 @@ def nn_sketch_3_2_2():
 @pytest.fixture
 def sparse_spectrum():
     """Sparse representation of f([0,0,0])=1, all others = 0."""
-    input_dits = [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0]]
+    input_dits = [
+        DitString([0, 0, 0], dimension=2),
+        DitString([0, 0, 1], dimension=2),
+        DitString([0, 1, 0], dimension=2),
+        DitString([1, 0, 0], dimension=2),
+    ]
     values = [1.0, 0.0, 0.0, 0.0]
     return input_dits, values
 
@@ -192,7 +198,7 @@ class TestConstraintComputeMarginal:
 
     def test_mismatched_lengths(self):
         with pytest.raises(ValueError):
-            constraint_compute_marginal([[0, 0]], [1.0, 2.0], {0: 0})
+            constraint_compute_marginal([DitString([0, 0], dimension=2)], [1.0, 2.0], {0: 0})
 
 
 # ---------------------------------------------------------------------------
@@ -347,14 +353,14 @@ class TestConstraintSketchMap:
 
     def test_compute_marginal_tuple_input(self):
         sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
-        input_dits = [[0, 0, 0], [1, 1, 1]]
+        input_dits = [DitString([0, 0, 0], dimension=2), DitString([1, 1, 1], dimension=2)]
         values = [1.0, 0.0]
         result = sm.compute_marginal((input_dits, values))
         assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
 
     def test_compute_marginal_two_arg_form(self):
         sm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")
-        input_dits = [[0, 0, 0], [1, 1, 1]]
+        input_dits = [DitString([0, 0, 0], dimension=2), DitString([1, 1, 1], dimension=2)]
         values = [1.0, 0.0]
         result = sm.compute_marginal(input_dits, values)
         assert result == pytest.approx([1, 0, 0, 0, 1, 0, 0, 0])
@@ -403,7 +409,11 @@ class TestExplicitSketchMap:
 
     def test_nn_and_constraint_marginals_agree(self):
         """Explicit and constraint sketches should give the same marginals."""
-        input_dits = [[0, 0, 0], [0, 1, 0], [1, 0, 1]]
+        input_dits = [
+            DitString([0, 0, 0], dimension=2),
+            DitString([0, 1, 0], dimension=2),
+            DitString([1, 0, 1], dimension=2),
+        ]
         values = [3.0, 1.0, 2.0]
 
         csm = ConstraintSketchMap(sketch_length=3, interaction_size=2, sketch_dimension=2, constraints="nearest_neighbors")

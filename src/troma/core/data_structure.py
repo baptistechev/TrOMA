@@ -4,7 +4,8 @@ from collections.abc import Iterable
 
 import numpy as np
 
-from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_sequence
+from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_instance
+from .structure import DitString
 
 
 def integer_to_dit_string(
@@ -12,25 +13,26 @@ def integer_to_dit_string(
     dit_string_length: int,
     dit_dimension: int = 2,
     convention: str = "R",
-) -> np.ndarray:
+) -> DitString:
     """Encode an integer into a fixed-length dit string.
 
     Parameters
     ----------
     integer : int
-        Integer to encode.
+        Non-negative integer to encode.
     dit_string_length : int
         Target length of the output dit string.
     dit_dimension : int, optional
-        Dit base (for example 2 for binary, 3 for ternary), by default 2.
+        Dit base (2 = binary, 3 = ternary, …), by default 2.
     convention : str, optional
-        Ordering convention. ``"R"`` returns most-significant dit first,
-        ``"L"`` returns least-significant dit first.
+        ``"R"`` — most-significant dit first (default).
+        ``"L"`` — least-significant dit first.
 
     Returns
     -------
-    np.ndarray
-        Encoded dit string as an integer numpy array.
+    DitString
+        Encoded dit string with ``length=dit_string_length`` and
+        ``dimension=dit_dimension``.
     """
     integer = ensure_int("integer", integer)
     dit_dimension = ensure_int("dit_dimension", dit_dimension)
@@ -49,106 +51,53 @@ def integer_to_dit_string(
     if dit_string_length > 0 and integer >= dit_dimension ** dit_string_length:
         raise ValueError("integer cannot be represented with the given dit_dimension and dit_string_length.")
 
-    values: list[int] = []
-    current = int(integer)
-    while current > 0:
-        current, rem = divmod(current, int(dit_dimension))
-        values.append(int(rem))
-
-    values += [0] * (int(dit_string_length) - len(values))
-    arr = np.array(values, dtype=int)
-    return arr[::-1] if convention == "R" else arr
+    return DitString.from_integer(integer, dit_string_length, dit_dimension, convention)
 
 
 def dit_string_to_integer(
-    dit_string: Iterable[int] | np.ndarray | str,
-    dit_dimension: int = 2,
+    dit_string: DitString,
     convention: str = "R",
 ) -> int:
-    """Decode a dit string into its integer value.
+    """Decode a :class:`DitString` into its integer index.
 
     Parameters
     ----------
-    dit_string : Iterable[int] | np.ndarray | str
-        Input dit sequence. Strings must contain only digits.
-    dit_dimension : int, optional
-        Dit base, by default 2.
+    dit_string : DitString
+        The dit string to decode. Its ``dimension`` attribute determines the base.
     convention : str, optional
-        Ordering convention matching :func:`integer_to_dit_string`.
+        ``"R"`` — most-significant dit first (default).
+        ``"L"`` — least-significant dit first.
 
     Returns
     -------
     int
         Decoded integer.
     """
-    dit_dimension = ensure_int("dit_dimension", dit_dimension)
+    ensure_instance("dit_string", dit_string, DitString)
     ensure_str("convention", convention)
-    if dit_dimension < 2:
-        raise ValueError("dit_dimension must be >= 2.")
     if convention not in ("R", "L"):
         raise ValueError("convention must be 'R' or 'L'.")
-
-    if isinstance(dit_string, str):
-        if len(dit_string) == 0:
-            values: list[int] = []
-        elif not dit_string.isdigit():
-            raise ValueError("When dit_string is a string, it must contain only digits.")
-        else:
-            values = [int(ch) for ch in dit_string]
-    else:
-        raw = list(dit_string)
-        for v in raw:
-            ensure_int("dit_string element", v)
-        values = [int(v) for v in raw]
-
-    for value in values:
-        if value < 0 or value > dit_dimension - 1:
-            raise ValueError("Each value in dit_string must be in [0, dit_dimension-1].")
-
-    basis = np.power(dit_dimension, np.arange(len(values)), dtype=float)
-    if convention == "R":
-        basis = basis[::-1]
-    return int(np.dot(np.array(values, dtype=int), basis))
+    return dit_string.to_integer(convention)
 
 
-def dit_string_to_computational_basis(
-    dit_string: Iterable[int] | np.ndarray | str,
-    dit_dimension: int = 2,
-) -> list[list[int]]:
-    """Convert a dit string into one-hot computational basis vectors.
+def dit_string_to_computational_basis(dit_string: DitString) -> list[list[int]]:
+    """Convert a :class:`DitString` into one-hot computational basis vectors.
 
     Parameters
     ----------
-    dit_string : Iterable[int] | np.ndarray | str
-        Input dit sequence.
-    dit_dimension : int, optional
-        Dit base, by default 2.
+    dit_string : DitString
+        The dit string to convert. Its ``dimension`` attribute determines the
+        length of each one-hot vector.
 
     Returns
     -------
     list[list[int]]
-        One-hot vectors for each dit value.
+        One-hot vector for each dit value.
     """
-    dit_dimension = ensure_int("dit_dimension", dit_dimension)
-    if dit_dimension < 2:
-        raise ValueError("dit_dimension must be >= 2.")
-
-    if isinstance(dit_string, str):
-        raw_values = list(dit_string)
-    else:
-        raw_values = list(dit_string)
-
+    ensure_instance("dit_string", dit_string, DitString)
     cp_representation: list[list[int]] = []
-    for raw_value in raw_values:
-        if isinstance(raw_value, str):
-            if len(raw_value) != 1 or not raw_value.isdigit():
-                raise ValueError("Each dit value must be an int or a single digit string.")
-            value = int(raw_value)
-        else:
-            value = int(raw_value)
-        if value < 0 or value > dit_dimension - 1:
-            raise ValueError("Each dit value must be in [0, dit_dimension-1].")
-        cp_vector = [0] * dit_dimension
+    for value in dit_string:
+        cp_vector = [0] * dit_string.dimension
         cp_vector[value] = 1
         cp_representation.append(cp_vector)
     return cp_representation
@@ -195,12 +144,7 @@ def create_cylinder_set_indicator(
     list_cylinder_sets: list[list[list[int]]] = []
     n_positions = len(fixed_positions)
     for config in range(dit_dimension ** n_positions):
-        dits = integer_to_dit_string(
-            config,
-            dit_string_length=n_positions,
-            dit_dimension=dit_dimension,
-            convention="R",
-        )
+        dits = integer_to_dit_string(config, dit_string_length=n_positions, dit_dimension=dit_dimension)
         cylinder_set = [[1] * dit_dimension for _ in range(set_size)]
         for position, dit_value in zip(fixed_positions, dits):
             cp_vector = [0] * dit_dimension
@@ -224,7 +168,7 @@ def kronecker_develop(
     dit_dimension : int, optional
         Local vector length / dit base, by default 2.
     convention : str, optional
-        Multiplication order convention (``"R"`` or ``"L"``).
+        Multiplication order: ``"R"`` or ``"L"``.
 
     Returns
     -------
@@ -273,7 +217,7 @@ def belongs_to_cylinder_set(
     Returns
     -------
     bool
-        ``True`` if the element satisfies all fixed coordinates, otherwise ``False``.
+        ``True`` if the element satisfies all fixed coordinates.
     """
     dit_dimension = ensure_int("dit_dimension", dit_dimension)
     if dit_dimension < 2:

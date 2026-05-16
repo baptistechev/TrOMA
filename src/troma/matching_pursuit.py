@@ -6,7 +6,8 @@ import inspect
 from importlib import import_module
 from typing import Any, Callable
 import numpy as np
-from .core.data_structure import integer_to_dit_string, dit_string_to_integer
+from .core.data_structure import integer_to_dit_string
+from .core.structure import DitString
 from .core.embedding import reverse_spectrum_restriction
 from ._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict, ensure_instance
 
@@ -28,7 +29,7 @@ class MatchingPursuitResults:
         Selected line positions (atom indices).
     values : np.ndarray
         Coefficients associated with ``positions``.
-    dit_strings : list[np.ndarray]
+    dit_strings : list[DitString]
         Dit-string encoding of each selected position.
     backend_name : str
         Backend used to run matching pursuit (``"explicit"`` or ``"abstract"``).
@@ -46,7 +47,7 @@ class MatchingPursuitResults:
 
     positions: np.ndarray
     values: np.ndarray
-    dit_strings: list[np.ndarray]
+    dit_strings: list[DitString]
     backend_name: str
     dit_string_length: int
     dit_dimension: int
@@ -470,7 +471,7 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
         additional_dits_val=restriction.additional_dits_val,
     )
     mapped_positions = np.array(
-        [dit_string_to_integer(s, dit_dimension=problem_sketch.problem_dimension) for s in mapped_dit_strings],
+        [s.to_integer() for s in mapped_dit_strings],
         dtype=int,
     )
 

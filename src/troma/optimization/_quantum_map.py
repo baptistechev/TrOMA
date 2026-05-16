@@ -7,6 +7,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter, ParameterVector
 
+from ..core.structure import DitString
 from .._validation import ensure_int, ensure_optional_int, ensure_dict
 
 

@@ -92,17 +92,19 @@ def objective_sampling(
     if threshold_parameter is not None:
         sample_values[sample_values < threshold_parameter] = 0
 
-    non_zero_triples = sorted(
-        [(int(i), s.tolist(), int(v))
-         for i, s, v in zip(sample_indexes, sample_dit_strings, sample_values) if v != 0]
-    )
-    sample_indexes, sample_dit_strings, sample_values = (
-        zip(*non_zero_triples) if non_zero_triples else ([], [], [])
-    )
+    non_zero_triples = [
+        (int(i), s, int(v))
+        for i, s, v in zip(sample_indexes, sample_dit_strings, sample_values) if v != 0
+    ]
+    non_zero_triples.sort(key=lambda t: t[0])
+    if non_zero_triples:
+        out_indexes, out_dit_strings, out_values = zip(*non_zero_triples)
+    else:
+        out_indexes, out_dit_strings, out_values = [], [], []
     return Sample(
-        indexes=list(sample_indexes),
-        values=list(sample_values),
-        dit_strings=list(sample_dit_strings),
+        indexes=list(out_indexes),
+        values=list(out_values),
+        dit_strings=list(out_dit_strings),
     )
 
 
@@ -204,15 +206,17 @@ def restricted_objective_sampling(
     if threshold_parameter is not None:
         sample_values[sample_values < threshold_parameter] = 0
 
-    non_zero_triples = sorted(
-        [(int(i), s.tolist(), int(v))
-         for i, s, v in zip(sample_indexes_rest, sample_dit_strings_rest, sample_values) if v != 0]
-    )
-    sample_indexes_rest, sample_dit_strings_rest, sample_values = (
-        zip(*non_zero_triples) if non_zero_triples else ([], [], [])
-    )
+    non_zero_triples = [
+        (int(i), s, int(v))
+        for i, s, v in zip(sample_indexes_rest, sample_dit_strings_rest, sample_values) if v != 0
+    ]
+    non_zero_triples.sort(key=lambda t: t[0])
+    if non_zero_triples:
+        out_indexes, out_dit_strings, out_values = zip(*non_zero_triples)
+    else:
+        out_indexes, out_dit_strings, out_values = [], [], []
     return Sample(
-        indexes=list(sample_indexes_rest),
-        values=list(sample_values),
-        dit_strings=list(sample_dit_strings_rest),
+        indexes=list(out_indexes),
+        values=list(out_values),
+        dit_strings=list(out_dit_strings),
     )

@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from troma.core.structure import DitString
 from troma.core.data_structure import (
     belongs_to_cylinder_set,
     create_cylinder_set_indicator,
@@ -13,13 +14,22 @@ from troma.core.data_structure import (
 
 def test_integer_to_dit_string_basic_r_convention():
     out = integer_to_dit_string(5, dit_dimension=2, dit_string_length=4, convention="R")
-    assert isinstance(out, np.ndarray)
+    assert isinstance(out, DitString)
+    assert out.length == 4
+    assert out.dimension == 2
     assert out.tolist() == [0, 1, 0, 1]
 
 
 def test_integer_to_dit_string_basic_l_convention():
     out = integer_to_dit_string(5, dit_dimension=2, dit_string_length=4, convention="L")
+    assert isinstance(out, DitString)
     assert out.tolist() == [1, 0, 1, 0]
+
+
+def test_integer_to_dit_string_roundtrip():
+    for n in range(8):
+        ds = integer_to_dit_string(n, dit_string_length=3, dit_dimension=2)
+        assert ds.to_integer() == n
 
 
 @pytest.mark.parametrize(
@@ -42,18 +52,23 @@ def test_integer_to_dit_string_invalid_inputs(kwargs, exc):
 
 
 def test_dit_string_to_integer_roundtrip():
-    value = dit_string_to_integer([0, 1, 0, 1], dit_dimension=2, convention="R")
-    assert value == 5
+    ds = DitString([0, 1, 0, 1], dimension=2)
+    assert dit_string_to_integer(ds, convention="R") == 5
+
+
+def test_dit_string_to_integer_l_convention():
+    ds = DitString([1, 0, 1, 0], dimension=2)
+    assert dit_string_to_integer(ds, convention="L") == 5
 
 
 @pytest.mark.parametrize(
     "args,exc",
     [
-        ((10, 2, "R"), TypeError),
-        (([0, 1], 1, "R"), ValueError),
-        (([0, 1], 2, "X"), ValueError),
-        (([0, 1.2], 2, "R"), TypeError),
-        (([0, 2], 2, "R"), ValueError),
+        # non-DitString input → TypeError
+        ((10,), TypeError),
+        (([0, 1],), TypeError),
+        # invalid convention → ValueError
+        ((DitString([0, 1], dimension=2), "X"), ValueError),
     ],
 )
 def test_dit_string_to_integer_invalid_inputs(args, exc):
@@ -62,22 +77,21 @@ def test_dit_string_to_integer_invalid_inputs(args, exc):
 
 
 def test_dit_string_to_computational_basis_binary():
-    out = dit_string_to_computational_basis([0, 1, 0], dit_dimension=2)
+    out = dit_string_to_computational_basis(DitString([0, 1, 0], dimension=2))
     assert out == [[1, 0], [0, 1], [1, 0]]
 
 
 def test_dit_string_to_computational_basis_ternary():
-    out = dit_string_to_computational_basis([0, 2, 1], dit_dimension=3)
+    out = dit_string_to_computational_basis(DitString([0, 2, 1], dimension=3))
     assert out == [[1, 0, 0], [0, 0, 1], [0, 1, 0]]
 
 
 @pytest.mark.parametrize(
     "args,exc",
     [
-        ((10, 2), TypeError),
-        (([0, 1], 1), ValueError),
-        (([0, object()], 2), TypeError),
-        (([0, 2], 2), ValueError),
+        # non-DitString → TypeError
+        ((10,), TypeError),
+        (([0, 1],), TypeError),
     ],
 )
 def test_dit_string_to_computational_basis_invalid_inputs(args, exc):

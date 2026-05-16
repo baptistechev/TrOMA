@@ -9,6 +9,7 @@ import scipy.optimize as scipy_opt
 
 from ..sketchs import abstract as ab
 from ..core import data_structure as ds
+from ..core.structure import DitString
 from .._validation import ensure_int, ensure_real, ensure_sequence, ensure_optional_dict
 
 
@@ -81,7 +82,7 @@ def spin_chain_nn_max(
         spin_chain = np.argmax(
             marginal_tensor.reshape(dit_string_length, dit_dimension), axis=1
         ).tolist()
-        return ds.dit_string_to_integer(spin_chain, dit_dimension=dit_dimension)
+        return DitString(spin_chain, dimension=dit_dimension).to_integer()
 
     state_size = interaction_size - 1
     n_states = dit_dimension ** state_size
@@ -92,7 +93,7 @@ def spin_chain_nn_max(
 
     best_energy_by_state: dict = {state: 0.0 for state in states}
     best_index_by_state: dict = {
-        state: ds.dit_string_to_integer(list(state), dit_dimension=dit_dimension)
+        state: DitString(list(state), dimension=dit_dimension).to_integer()
         for state in states
     }
     predecessors_by_window: list = []
@@ -139,7 +140,7 @@ def spin_chain_nn_max(
     for window_idx in range(1, n_windows + 1):
         spin_chain.append(int(state_path[window_idx][-1]))
 
-    return ds.dit_string_to_integer(spin_chain, dit_dimension=dit_dimension)
+    return DitString(spin_chain, dimension=dit_dimension).to_integer()
 
 
 def dual_annealing(
@@ -261,7 +262,7 @@ def simulated_annealing(
         return best_x, best_fx
 
     def objective_function(config: np.ndarray) -> float:
-        config_index = ds.dit_string_to_integer(config, dit_dimension=dit_dimension)
+        config_index = DitString(list(config), dimension=dit_dimension).to_integer()
         return float(np.dot(
             -np.asarray(marginals),
             ab.reconstruct_structured_matrix_column(
@@ -271,4 +272,4 @@ def simulated_annealing(
         ))
 
     best_config, _ = _sa_binary(objective_function, dit_string_length)
-    return ds.dit_string_to_integer(best_config, dit_dimension=dit_dimension)
+    return DitString(list(best_config), dimension=dit_dimension).to_integer()
