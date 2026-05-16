@@ -5,10 +5,12 @@ from collections.abc import Callable
 from functools import singledispatchmethod
 from typing import Any
 
+import numpy as np
+
 from .sketch_map import ConstraintSketchMap, SketchMap
-from .core.structure import Sample, Restriction
-from .core.sampling import objective_sampling, restricted_objective_sampling
-from ._validation import ensure_instance
+from .core.structure import DitString, Sample, Restriction
+from .core.embedding import reverse_spectrum_restriction
+from ._validation import ensure_instance, ensure_callable, ensure_int, ensure_optional_dict
 
 
 class SketchType(enum.StrEnum):
@@ -32,6 +34,60 @@ class CombinatorialProblem:
     def restrict(self, restriction: Restriction) -> RestrictedProblem:
         return RestrictedProblem(self, restriction=restriction)
 
+    @staticmethod
+    def _uniform_sampling(
+        n_samples: int,
+        length: int,
+        dimension: int,
+    ) -> tuple[np.ndarray, list[DitString]]:
+        """Uniform random sampler over the dit-string space."""
+        total_states = dimension ** length
+        rng = np.random.default_rng()
+        indexes = rng.integers(0, total_states, size=n_samples, dtype=np.int64)
+        dit_strings = [DitString.from_integer(int(i), length, dimension) for i in indexes]
+        return indexes, dit_strings
+
+    @staticmethod
+    def _evaluate_and_filter(
+        indexes: np.ndarray,
+        dit_strings: list[DitString],
+        objective_function: Callable,
+        threshold_parameter: float | str | None,
+        full_dit_strings: list[DitString] | None = None,
+    ) -> Sample:
+        """Evaluate the objective, apply threshold, return sorted non-zero Sample.
+
+        Parameters
+        ----------
+        full_dit_strings : list[DitString] or None, optional
+            When provided, the objective is evaluated on these (full-space) dit strings
+            while ``dit_strings`` (restricted-space) are stored in the returned Sample.
+            Used by RestrictedProblem so the objective always receives full-space inputs.
+        """
+        eval_strings = full_dit_strings if full_dit_strings is not None else dit_strings
+        values = np.array([objective_function(np.asarray(s)) for s in eval_strings])
+
+        if threshold_parameter == "Auto":
+            non_zero = values[values != 0]
+            threshold_parameter = np.percentile(non_zero, 90) if non_zero.size > 0 else 0
+        if threshold_parameter is not None:
+            values[values < threshold_parameter] = 0
+
+        triples = [
+            (int(i), s, int(v))
+            for i, s, v in zip(indexes, dit_strings, values) if v != 0
+        ]
+        triples.sort(key=lambda t: t[0])
+        if triples:
+            out_indexes, out_strings, out_values = zip(*triples)
+        else:
+            out_indexes, out_strings, out_values = [], [], []
+        return Sample(
+            indexes=list(out_indexes),
+            values=list(out_values),
+            dit_strings=list(out_strings),
+        )
+
     def sampling(
         self,
         n_samples: int,
@@ -39,15 +95,37 @@ class CombinatorialProblem:
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
     ) -> Sample:
-        """Sample the combinatorial problem by evaluating the objective function on a random subset of the search space."""
-        self.sample = objective_sampling(
-            self.objective_function,
-            n_samples,
-            self.problem_size,
-            dit_dimension=self.problem_dimension,
-            sampling_function=sampling_function,
-            sampling_args=sampling_args,
-            threshold_parameter=threshold_parameter,
+        """Sample the problem by evaluating the objective on a random subset of the search space.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of configurations to sample.
+        sampling_function : Callable or None, optional
+            Custom sampler. Must accept ``(n_samples, length, dimension)`` and return
+            ``(indexes, dit_strings)``. Defaults to uniform random sampling.
+        sampling_args : dict or None, optional
+            Extra keyword arguments forwarded to ``sampling_function``.
+        threshold_parameter : float, "Auto", or None, optional
+            Samples whose objective value is below the threshold are discarded.
+            ``"Auto"`` sets the threshold to the 90th percentile of non-zero values.
+        """
+        n_samples = ensure_int("n_samples", n_samples, min_value=1)
+        if sampling_function is None:
+            sampling_function = self._uniform_sampling
+        else:
+            ensure_callable("sampling_function", sampling_function)
+        ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter is not None and threshold_parameter != "Auto":
+            if not isinstance(threshold_parameter, (int, float, np.integer, np.floating)):
+                raise TypeError("threshold_parameter must be a real number, 'Auto', or None.")
+
+        indexes, dit_strings = sampling_function(
+            n_samples, self.problem_size, self.problem_dimension,
+            **(sampling_args or {}),
+        )
+        self.sample = self._evaluate_and_filter(
+            indexes, dit_strings, self.objective_function, threshold_parameter,
         )
         return self.sample
 
@@ -71,7 +149,6 @@ class CombinatorialProblem:
         Returns
         -------
         CombinatorialProblemSketch
-            A sketch of the combinatorial problem.
         """
         if constraints.sketch_length != self.problem_size:
             raise ValueError(
@@ -90,14 +167,13 @@ class CombinatorialProblem:
         Parameters
         ----------
         constraints : SketchType or str
-            The sketch type: "nearest_neighbors" or "all_interactions".
+            ``"nearest_neighbors"`` or ``"all_interactions"``.
         interaction_size : int, required
-            Size of interactions. Must be provided when using a string shorthand.
+            Size of interactions.
 
         Returns
         -------
         CombinatorialProblemSketch
-            A sketch of the combinatorial problem.
         """
         if interaction_size is None:
             raise TypeError(
@@ -150,8 +226,7 @@ class RestrictedProblem(CombinatorialProblem):
             problem_dimension=problem.problem_dimension,
         )
 
-        # Backward compatibility for legacy positional calls:
-        # RestrictedProblem(problem, dit_restrictions, dit_value_restrictions, additional_dits_val)
+        # Backward compatibility for legacy positional calls
         if restriction is not None and not isinstance(restriction, Restriction):
             dit_restrictions = restriction
             restriction = None
@@ -181,15 +256,48 @@ class RestrictedProblem(CombinatorialProblem):
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
     ) -> Sample:
-        self.sample = restricted_objective_sampling(
-            self.objective_function,
-            n_samples,
-            dit_string_length=self.problem_size,
-            dit_dimension=self.problem_dimension,
-            sampling_function=sampling_function,
-            sampling_args=sampling_args,
-            threshold_parameter=threshold_parameter,
-            restriction=self.restriction,
+        """Sample the restricted problem.
+
+        Samples from the restricted search space, maps configurations back to
+        the full space for objective evaluation, and stores the restricted-space
+        dit strings in the sample.
+        """
+        # No active restriction — delegate to the unrestricted sampler.
+        if (
+            self.restriction.dit_restrictions is None
+            and self.restriction.dit_value_restrictions is None
+        ):
+            return super().sampling(n_samples, sampling_function, sampling_args, threshold_parameter)
+
+        n_samples = ensure_int("n_samples", n_samples, min_value=1)
+        if sampling_function is None:
+            sampling_function = self._uniform_sampling
+        else:
+            ensure_callable("sampling_function", sampling_function)
+        ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter is not None and threshold_parameter != "Auto":
+            if not isinstance(threshold_parameter, (int, float, np.integer, np.floating)):
+                raise TypeError("threshold_parameter must be a real number, 'Auto', or None.")
+
+        # Sample in the restricted space.
+        indexes_rest, dit_strings_rest = sampling_function(
+            n_samples, self.restricted_problem_size, self.restricted_problem_dimension,
+            **(sampling_args or {}),
+        )
+
+        # Map back to full space to evaluate the objective.
+        dit_strings_full = reverse_spectrum_restriction(
+            dit_strings_rest,
+            original_size=self.problem_size,
+            dit_restrictions=self.restriction.dit_restrictions,
+            dit_value_restrictions=self.restriction.dit_value_restrictions,
+            additional_dits_val=self.restriction.additional_dits_val,
+        )
+
+        # Evaluate, threshold and keep non-zero samples (store restricted dit strings).
+        self.sample = self._evaluate_and_filter(
+            indexes_rest, dit_strings_rest, self.objective_function, threshold_parameter,
+            full_dit_strings=dit_strings_full,
         )
         return self.sample
 
