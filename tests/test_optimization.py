@@ -13,8 +13,7 @@ from troma.optimization import (
     simulated_annealing,
 )
 from troma.optimization.optimizer import FunctionOptimizer
-from troma.sketchs import nearest_neighbors_interactions_sketch
-from troma.sketchs import constraints_for_nearest_neighbors_interactions
+from troma import ConstraintSketchMap, ExplicitSketchMap, Hamiltonian
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -26,8 +25,12 @@ def _identity_sketch(n: int) -> np.ndarray:
 
 def _nn_setup(n=3, k=2, d=2):
     """Return (constraints, explicit_sketch, marginals favouring index 0)."""
-    constraints = constraints_for_nearest_neighbors_interactions(n, k, d)
-    sketch = nearest_neighbors_interactions_sketch(n, k, d)
+    csm = ConstraintSketchMap(sketch_length=n, interaction_size=k, sketch_dimension=d)
+    csm.build_from_nearest_neighbors()
+    constraints = csm.map
+    esm = ExplicitSketchMap(sketch_length=n, interaction_size=k, sketch_dimension=d)
+    esm.build_from_nearest_neighbors()
+    sketch = esm.map
     # f([0,0,0])=1 → marginals = [1,0,0,0,1,0,0,0]
     marginals = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
     return constraints, sketch, marginals
@@ -68,7 +71,7 @@ class TestListOptimizers:
 
 class TestCreateQaoaCircuit:
     def test_single_layer_circuit_uses_named_parameters(self):
-        qc = create_qaoa_circ({(0,): 1.0, (0, 1): -0.5}, num_qubits=2)
+        qc = create_qaoa_circ(Hamiltonian({(0,): 1.0, (0, 1): -0.5}, num_qubits=2))
 
         beta = _parameter_by_name(qc, "beta")
         gamma = _parameter_by_name(qc, "gamma")
@@ -78,7 +81,7 @@ class TestCreateQaoaCircuit:
         assert len(bound_qc.parameters) == 0
 
     def test_multi_layer_circuit_exposes_parameter_vectors(self):
-        qc = create_qaoa_circ({(0,): 1.0}, num_qubits=1, num_layers=2)
+        qc = create_qaoa_circ(Hamiltonian({(0,): 1.0}, num_qubits=1), num_layers=2)
         bound_qc = qc.assign_parameters(
             {
                 _parameter_by_name(qc, "beta[0]"): 0.1,

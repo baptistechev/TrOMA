@@ -6,7 +6,7 @@ import inspect
 from importlib import import_module
 from typing import Any, Callable
 import numpy as np
-from .core.structure import DitString
+from .core.structure import DitString, MatchingPursuitResults
 from .core.embedding import reverse_spectrum_restriction
 from ._validation import ensure_callable, ensure_nonempty_str, ensure_tuple, ensure_optional_dict, ensure_instance
 
@@ -17,76 +17,6 @@ from .sketch_map import ConstraintSketchMap, ExplicitSketchMap
 
 MatchingPursuitFunction = Callable[..., Any]
 
-
-@dataclass(frozen=True)
-class MatchingPursuitResults:
-    """Structured output of ``matching_pursuit``.
-
-    Attributes
-    ----------
-    positions : np.ndarray
-        Selected line positions (atom indices).
-    values : np.ndarray
-        Coefficients associated with ``positions``.
-    dit_strings : list[DitString]
-        Dit-string encoding of each selected position.
-    backend_name : str
-        Backend used to run matching pursuit (``"explicit"`` or ``"abstract"``).
-    dit_string_length : int
-        Dit-string length used for encoding.
-    dit_dimension : int
-        Dit dimension used for encoding.
-    interaction_size : int | None
-        Interaction size when available.
-    marginals : np.ndarray
-        Marginals used to run matching pursuit.
-    raw : np.ndarray
-        Raw backend output as a 2-column array ``[index, coefficient]``.
-    """
-
-    positions: np.ndarray
-    values: np.ndarray
-    dit_strings: list[DitString]
-    backend_name: str
-    dit_string_length: int
-    dit_dimension: int
-    interaction_size: int | None
-    marginals: np.ndarray
-    raw: np.ndarray
-
-    @property
-    def n_lines(self) -> int:
-        """Number of selected lines."""
-        return int(self.positions.size)
-
-    @property
-    def line_positions(self) -> np.ndarray:
-        """Alias for selected line positions."""
-        return self.positions
-
-    @property
-    def line_values(self) -> np.ndarray:
-        """Alias for selected line values."""
-        return self.values
-
-    def as_array(self) -> np.ndarray:
-        """Return the raw 2-column backend output."""
-        return self.raw
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a serializable dictionary view of this result."""
-        return {
-            "positions": self.positions,
-            "values": self.values,
-            "dit_strings": self.dit_strings,
-            "backend_name": self.backend_name,
-            "dit_string_length": self.dit_string_length,
-            "dit_dimension": self.dit_dimension,
-            "interaction_size": self.interaction_size,
-            "marginals": self.marginals,
-            "raw": self.raw,
-            "n_lines": self.n_lines,
-        }
 
 
 def _coerce_solution_array(solution: Any) -> np.ndarray:
@@ -218,8 +148,8 @@ class FunctionMatchingPursuit(MatchingPursuit):
 
 
 _MATCHING_PURSUIT_REGISTRY: dict[str, tuple[str, str]] = {
-    "explicit": ("decoding.decoding_proced", "matchingpursuit_explicit"),
-    "abstract": ("decoding.decoding_proced", "matchingpursuit_abstract"),
+    "explicit": ("core.decoding_proced", "matchingpursuit_explicit"),
+    "abstract": ("core.decoding_proced", "matchingpursuit_abstract"),
 }
 
 
@@ -403,7 +333,7 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
     if not marginals:
         raise ValueError("ProblemSketch must have a sketch. Call problem.mcco_sketching() first.")
     
-    # Determine backend type and extract parameters based on sketch_map type
+    # Determine backend type and output metadata based on sketch_map type.
     sketch_map = problem_sketch.sketch_map
     run_dit_string_length = problem_sketch.problem_size
     run_dit_dimension = problem_sketch.problem_dimension
@@ -414,36 +344,18 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
         run_dit_dimension = problem_sketch.restricted_problem_dimension
     
     if isinstance(sketch_map, ConstraintSketchMap):
-        # Use abstract backend with constraints
         backend_name = "abstract"
-        backend_kwargs = {
-            "marginals": marginals,
-            "dit_constraints": sketch_map.map,
-            "dit_string_length": run_dit_string_length,
-            "dit_dimension": run_dit_dimension,
-        }
-        # Add optional parameters from sketch_map if available
-        if sketch_map.interaction_size is not None:
-            backend_kwargs["interaction_size"] = sketch_map.interaction_size
         interaction_size = sketch_map.interaction_size
     
     elif isinstance(sketch_map, ExplicitSketchMap):
-        # Use explicit backend with sketch matrix
         backend_name = "explicit"
-        backend_kwargs = {
-            "marginals": marginals,
-            "sketch": sketch_map.map,
-        }
         interaction_size = sketch_map.interaction_size
     
     else:
         raise TypeError(f"Unsupported sketch_map type: {type(sketch_map).__name__}. "
                        "Must be ConstraintSketchMap or ExplicitSketchMap.")
     
-    # Merge user-provided kwargs; explicit user values override inferred defaults.
-    backend_kwargs.update(kwargs)
-    
-    raw_solution = run_matching_pursuit(backend_name, **backend_kwargs)
+    raw_solution = run_matching_pursuit(backend_name, problem_sketch, **kwargs)
     result = _build_matching_pursuit_results(
         raw_solution,
         backend_name=backend_name,

@@ -1,7 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 # Import core structure classes
-from .core.structure import DitString, CylinderSet, Restriction, Sample
+from .core.structure import DitString, CylinderSet, Restriction, Sample, Hamiltonian
 
 # Import embedding
 from .core.embedding import (
@@ -31,24 +31,12 @@ from .matching_pursuit import (
 	bind_matching_pursuit,
 	get_matching_pursuit,
 	matching_pursuit,
-	MatchingPursuitResults,
 )
+from .core.structure import MatchingPursuitResults
 
 # Import higher-level APIs (depends on other modules)
 # TODO: pipelines.py will be removed - keep commented for now
 # from .pipelines import solve_via_mcco, embedding_and_solve_via_mcco
-
-# Import old sketchs module for backward compatibility (functions only, not classes)
-from .sketchs import (
-	constraint_compute_marginal,
-	constraints_for_nearest_neighbors_interactions,
-	constraints_for_all_interactions,
-	reconstruct_structured_matrix_column,
-	explicit_compute_marginal,
-	nearest_neighbors_interactions_sketch,
-	all_interactions_sketch,
-	random_sketch,
-)
 
 try:
 	__version__ = version("troma")
@@ -65,6 +53,7 @@ __all__ = [
 	"CombinatorialProblem",
 	"Restriction",
 	"Sample",
+	"Hamiltonian",
 	"ProblemSketch",
 	"CombinatorialProblemSketch",
 	"RestrictedProblemSketch",
@@ -77,12 +66,4 @@ __all__ = [
 	"get_matching_pursuit",
 	"matching_pursuit",
 	"MatchingPursuitResults",
-	"constraint_compute_marginal",
-	"constraints_for_nearest_neighbors_interactions",
-	"constraints_for_all_interactions",
-	"reconstruct_structured_matrix_column",
-	"explicit_compute_marginal",
-	"nearest_neighbors_interactions_sketch",
-	"all_interactions_sketch",
-	"random_sketch",
 ]

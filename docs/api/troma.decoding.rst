@@ -1,21 +1,21 @@
-troma.decoding package
+troma decoding modules
 ======================
 
 Submodules
 ----------
 
-troma.decoding.decoding\_proced module
---------------------------------------
+troma.core.decoding\_proced module
+----------------------------------
 
-.. automodule:: troma.decoding.decoding_proced
+.. automodule:: troma.core.decoding_proced
    :members:
    :undoc-members:
    :show-inheritance:
 
-troma.decoding.matching\_pursuit module
----------------------------------------
+troma.matching\_pursuit module
+------------------------------
 
-.. automodule:: troma.decoding.matching_pursuit
+.. automodule:: troma.matching_pursuit
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +23,7 @@ troma.decoding.matching\_pursuit module
 Module contents
 ---------------
 
-.. automodule:: troma.decoding
+.. automodule:: troma
    :members:
    :undoc-members:
    :show-inheritance:

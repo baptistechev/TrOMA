@@ -5,9 +5,11 @@ from typing import Any
 
 import numpy as np
 
-from ..sketchs import abstract as ab
+from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
+from ..sketch_map import ConstraintSketchMap
+from ..sketch_map import ExplicitSketchMap
 from ..optimization import optimizer as optimizer_api
-from .._validation import ensure_int, ensure_sequence
+from .._validation import ensure_instance, ensure_int, ensure_sequence
 
 
 def _column_vector_to_array(vec: Any) -> np.ndarray:
@@ -15,8 +17,7 @@ def _column_vector_to_array(vec: Any) -> np.ndarray:
 
 
 def matchingpursuit_explicit(
-    marginals: list[float] | np.ndarray,
-    sketch: np.ndarray,
+    problem_sketch: ProblemSketch,
     iteration_number: int,
     step: float | None = None,
     optimizer: Any | None = None,
@@ -26,10 +27,8 @@ def matchingpursuit_explicit(
 
     Parameters
     ----------
-    marginals : list of float
-        The marginals of the function defined on the full spectrum of dit strings.
-    sketch : 2D numpy array
-        The sketch matrix.
+    problem_sketch : ProblemSketch
+        Problem sketch containing sketch values and an ExplicitSketchMap.
     iteration_number : int
         The number of iterations to perform.
     step : float, optional
@@ -42,8 +41,16 @@ def matchingpursuit_explicit(
     np.ndarray
         2D array where each row is [column_index, coefficient].
     """
+    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    sketch_map = problem_sketch.sketch_map
+    if not isinstance(sketch_map, ExplicitSketchMap):
+        raise TypeError("problem_sketch.sketch_map must be an ExplicitSketchMap for explicit matching pursuit.")
+    marginals = problem_sketch.sketch_values
+    if marginals is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before running matching pursuit.")
+    sketch = sketch_map.map
     if not hasattr(sketch, "__getitem__"):
-        raise TypeError("sketch must be an indexable matrix-like object.")
+        raise TypeError("problem_sketch.sketch_map.map must be an indexable matrix-like object.")
     iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
     if step is not None and not isinstance(step, (int, float)):
         raise TypeError("step must be a real number or None.")
@@ -73,13 +80,9 @@ def matchingpursuit_explicit(
 
 
 def matchingpursuit_abstract(
-    marginals: list[float] | np.ndarray,
-    dit_constraints: list[dict],
-    dit_string_length: int,
+    problem_sketch: ProblemSketch,
     iteration_number: int,
     step: float | None = None,
-    interaction_size: int = 2,
-    dit_dimension: int = 2,
     optimizer: Any | None = None,
 ) -> np.ndarray:
     """
@@ -87,20 +90,12 @@ def matchingpursuit_abstract(
 
     Parameters
     ----------
-    marginals : list of float
-        The marginals of the function.
-    dit_constraints : list of dict
-        The dit constraints.
-    dit_string_length : int
-        The length of the dit strings.
+    problem_sketch : ProblemSketch
+        Problem sketch containing sketch values and a ConstraintSketchMap.
     iteration_number : int
         The number of iterations.
     step : float, optional
         The step size. If None, adaptive.
-    interaction_size : int, optional
-        The interaction size. Default is 2.
-    dit_dimension : int, optional
-        The dit dimension. Default is 2.
     optimizer : Optimizer, optional
         Instantiated optimizer. If None, a spin-chain NN optimizer is used.
 
@@ -109,13 +104,26 @@ def matchingpursuit_abstract(
     np.ndarray
         2D array where each row is [column_index, coefficient].
     """
+    ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    sketch_map = problem_sketch.sketch_map
+    if not isinstance(sketch_map, ConstraintSketchMap):
+        raise TypeError("problem_sketch.sketch_map must be a ConstraintSketchMap for abstract matching pursuit.")
+    marginals = problem_sketch.sketch_values
+    if marginals is None:
+        raise ValueError("problem_sketch.sketch_values must be defined before running matching pursuit.")
+    dit_constraints = sketch_map.map
     ensure_sequence("dit_constraints", dit_constraints)
+
+    dit_string_length = problem_sketch.problem_size
+    dit_dimension = problem_sketch.problem_dimension
+    if isinstance(problem_sketch, RestrictedProblemSketch):
+        dit_string_length = problem_sketch.restricted_problem_size
+        dit_dimension = problem_sketch.restricted_problem_dimension
+
     dit_string_length = ensure_int("dit_string_length", dit_string_length, min_value=1)
     iteration_number = ensure_int("iteration_number", iteration_number, min_value=1)
-    interaction_size = ensure_int("interaction_size", interaction_size, min_value=1)
     dit_dimension = ensure_int("dit_dimension", dit_dimension, min_value=2)
-    if interaction_size > dit_string_length:
-        raise ValueError("interaction_size must be <= dit_string_length.")
+    interaction_size = sketch_map.interaction_size if sketch_map.interaction_size is not None else 2
     if step is not None and not isinstance(step, (int, float)):
         raise TypeError("step must be a real number or None.")
 
@@ -138,7 +146,7 @@ def matchingpursuit_abstract(
             bit_string_length=dit_string_length,
         )
 
-        At = ab.reconstruct_structured_matrix_column(t, dit_constraints, dit_string_length, dit_dimension)
+        At = sketch_map.reconstruct_structured_matrix_column(t)
 
         if step is None:
             norm_sq = np.dot(At, At)

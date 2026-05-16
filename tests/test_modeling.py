@@ -6,9 +6,9 @@ import pytest
 from troma import (
     CombinatorialProblem,
     ConstraintSketchMap,
-    MatchingPursuitResults,
     matching_pursuit,
 )
+from troma.core.structure import MatchingPursuitResults
 from troma.combinatorial_problem import RestrictedProblem
 from troma.core.structure import Restriction
 

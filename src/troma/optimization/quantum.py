@@ -11,9 +11,9 @@ from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
 
-from ..sketchs import abstract as ab
-from ._quantum_map import compute_hamiltonian as _compute_hamiltonian, create_qaoa_circ as _create_qaoa_circ
-from ..core.structure import DitString
+from ..sketch_map import ConstraintSketchMap
+from ._quantum_map import create_qaoa_circ as _create_qaoa_circ
+from ..core.structure import DitString, Hamiltonian
 from .._validation import ensure_int, ensure_real, ensure_str, ensure_optional_dict, ensure_sequence
 
 
@@ -42,12 +42,12 @@ def digital_annealing(marginals: list[float] | np.ndarray, number_iter: int = 10
 
     #Define spin-chain Ising Hamiltonian from the marginals
     n = len(marginals)//4 + 1
-    constraints = ab.constraints_for_nearest_neighbors_interactions(n,2)
-    H = _compute_hamiltonian(constraints, marginals, bit_string_length=n)
+    constraints = ConstraintSketchMap(n, 2, sketch_dimension=2, constraints="nearest_neighbors").map
+    H = Hamiltonian.from_constraints(constraints, marginals, bit_string_length=n)
 
     #Convert the Hamiltonian to the format required by the neal library
-    h = {i: - H.get((i,), 0.0) for i in range(n)}
-    J = {(i, i+1): - H.get((i, i+1), 0.0) for i in range(n-1)}
+    h = {i: - H.terms.get((i,), 0.0) for i in range(n)}
+    J = {(i, i+1): - H.terms.get((i, i+1), 0.0) for i in range(n-1)}
 
     sampler = neal.SimulatedAnnealingSampler()
     sampleset = sampler.sample_ising(h, J, num_reads=number_iter)
@@ -110,6 +110,13 @@ def QAOA(
     ensure_str("method", method)
     ensure_optional_dict("optimizer_options", optimizer_options)
     #-----------------------------
+
+    constraint_sketch_map = ConstraintSketchMap(
+        sketch_length=bit_string_length,
+        interaction_size=1,
+        sketch_map=bit_constraints,
+        sketch_dimension=2,
+    )
     
 
     #Init the sampler if not provided as it is used in the cost function, and set the number of shots
@@ -122,7 +129,7 @@ def QAOA(
         if isinstance(config, str):
             config = [int(bit) for bit in config]
         config_index = DitString(list(config), dimension=2).to_integer('L')
-        return float(np.dot(- np.asarray(marginals), ab.reconstruct_structured_matrix_column(config_index, dit_constraints=bit_constraints, dit_string_length=bit_string_length)))
+        return float(np.dot(- np.asarray(marginals), constraint_sketch_map.reconstruct_structured_matrix_column(config_index)))
 
     def _bind_qaoa_parameters(circuit: Any, theta: Any) -> Any:
         beta_parameters = circuit.metadata["beta_parameters"]
@@ -172,10 +179,13 @@ def QAOA(
         return min(counts, key=_objective_function)
 
     number_parameters = 2 * number_layers
-    ham_data = _compute_hamiltonian(bit_constraints,marginals, bit_string_length=bit_string_length)
+    hamiltonian = Hamiltonian.from_constraints(
+        bit_constraints,
+        marginals,
+        bit_string_length=bit_string_length,
+    )
     qaoa_circuit = _create_qaoa_circ(
-                        ham_data,
-                        num_qubits=bit_string_length,
+                        hamiltonian,
                         num_layers=number_layers,
                     )
     qaoa_circuit = transpile(qaoa_circuit, backend=sampler.backend())

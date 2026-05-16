@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import scipy.optimize as scipy_opt
 
-from ..sketchs import abstract as ab
+from ..sketch_map import ConstraintSketchMap
 from ..core.structure import DitString
 from .._validation import ensure_int, ensure_real, ensure_sequence, ensure_optional_dict
 
@@ -178,16 +178,20 @@ def dual_annealing(
     if len(marginals) != len(dit_constraints):
         raise ValueError("marginals and dit_constraints must have the same length.")
 
+    constraint_sketch_map = ConstraintSketchMap(
+        sketch_length=dit_string_length,
+        interaction_size=1,
+        sketch_map=dit_constraints,
+        sketch_dimension=dit_dimension,
+    )
+
     bounds = [(0, dit_dimension**dit_string_length - 1)]
 
     def objective_function(x: np.ndarray) -> float:
         config_index = int(np.round(x[0]))
         return float(np.dot(
             -np.asarray(marginals),
-            ab.reconstruct_structured_matrix_column(
-                config_index, dit_constraints=dit_constraints,
-                dit_string_length=dit_string_length, dit_dimension=dit_dimension,
-            ),
+            constraint_sketch_map.reconstruct_structured_matrix_column(config_index),
         ))
 
     result = scipy_opt.dual_annealing(objective_function, bounds, **(opt_func_kwargs or {}))
@@ -242,6 +246,13 @@ def simulated_annealing(
     if len(marginals) != len(dit_constraints):
         raise ValueError("marginals and dit_constraints must have the same length.")
 
+    constraint_sketch_map = ConstraintSketchMap(
+        sketch_length=dit_string_length,
+        interaction_size=1,
+        sketch_map=dit_constraints,
+        sketch_dimension=dit_dimension,
+    )
+
     def _sa_binary(f: Any, n: int) -> tuple[np.ndarray, float]:
         x = np.random.randint(0, dit_dimension, size=n)
         fx = f(x)
@@ -264,10 +275,7 @@ def simulated_annealing(
         config_index = DitString(list(config), dimension=dit_dimension).to_integer()
         return float(np.dot(
             -np.asarray(marginals),
-            ab.reconstruct_structured_matrix_column(
-                config_index, dit_constraints=dit_constraints,
-                dit_string_length=dit_string_length, dit_dimension=dit_dimension,
-            ),
+            constraint_sketch_map.reconstruct_structured_matrix_column(config_index),
         ))
 
     best_config, _ = _sa_binary(objective_function, dit_string_length)

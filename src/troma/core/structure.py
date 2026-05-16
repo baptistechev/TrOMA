@@ -1,12 +1,88 @@
 from __future__ import annotations
+from typing import Any
+import numpy as np
+
+# --- MatchingPursuitResults (moved from matching_pursuit.py) ---
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class MatchingPursuitResults:
+    """Structured output of ``matching_pursuit``.
+
+    Attributes
+    ----------
+    positions : np.ndarray
+        Selected line positions (atom indices).
+    values : np.ndarray
+        Coefficients associated with ``positions``.
+    dit_strings : list[DitString]
+        Dit-string encoding of each selected position.
+    backend_name : str
+        Backend used to run matching pursuit (``"explicit"`` or ``"abstract"``).
+    dit_string_length : int
+        Dit-string length used for encoding.
+    dit_dimension : int
+        Dit dimension used for encoding.
+    interaction_size : int | None
+        Interaction size when available.
+    marginals : np.ndarray
+        Marginals used to run matching pursuit.
+    raw : np.ndarray
+        Raw backend output as a 2-column array ``[index, coefficient]``.
+    """
+
+    positions: np.ndarray
+    values: np.ndarray
+    dit_strings: list[DitString]
+    backend_name: str
+    dit_string_length: int
+    dit_dimension: int
+    interaction_size: int | None
+    marginals: np.ndarray
+    raw: np.ndarray
+
+    @property
+    def n_lines(self) -> int:
+        """Number of selected lines."""
+        return int(self.positions.size)
+
+    @property
+    def line_positions(self) -> np.ndarray:
+        """Alias for selected line positions."""
+        return self.positions
+
+    @property
+    def line_values(self) -> np.ndarray:
+        """Alias for selected line values."""
+        return self.values
+
+    def as_array(self) -> np.ndarray:
+        """Return the raw 2-column backend output."""
+        return self.raw
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a serializable dictionary view of this result."""
+        return {
+            "positions": self.positions,
+            "values": self.values,
+            "dit_strings": self.dit_strings,
+            "backend_name": self.backend_name,
+            "dit_string_length": self.dit_string_length,
+            "dit_dimension": self.dit_dimension,
+            "interaction_size": self.interaction_size,
+            "marginals": self.marginals,
+            "raw": self.raw,
+            "n_lines": self.n_lines,
+        }
 
 from collections.abc import Iterable, Iterator
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 
-from .._validation import ensure_int, ensure_str, ensure_unique_items
+from .._validation import ensure_int, ensure_str, ensure_unique_items, ensure_instance
 
 
 class DitString:
@@ -327,6 +403,130 @@ class Sample:
     indexes: list[int] = field(default_factory=list)
     values: list[float] = field(default_factory=list)
     dit_strings: list[DitString] = field(default_factory=list)
+
+
+@dataclass
+class Hamiltonian:
+    """Ising-Z Hamiltonian container.
+
+    Attributes
+    ----------
+    terms : dict[tuple[int, ...], float]
+        Mapping from Z-term support to coefficient.
+    num_qubits : int
+        Number of qubits for this Hamiltonian.
+    """
+
+    terms: dict[tuple[int, ...], float] = field(default_factory=dict)
+    num_qubits: int = 1
+
+    def __post_init__(self) -> None:
+        self.num_qubits = ensure_int("num_qubits", self.num_qubits, min_value=1)
+        if not isinstance(self.terms, dict):
+            raise TypeError("terms must be a dict mapping tuple[int, ...] to float.")
+
+        validated_terms: dict[tuple[int, ...], float] = {}
+        for raw_term, raw_coeff in self.terms.items():
+            if not isinstance(raw_term, tuple):
+                raise TypeError("Each Hamiltonian term key must be a tuple of qubit indices.")
+            term: tuple[int, ...] = tuple(ensure_int("qubit index", q, min_value=0) for q in raw_term)
+            for q in term:
+                if q >= self.num_qubits:
+                    raise ValueError(
+                        f"Qubit index {q} is out of range for num_qubits={self.num_qubits}."
+                    )
+            validated_terms[term] = float(raw_coeff)
+        self.terms = validated_terms
+
+    #Need to be removed after changing the optimizations method to take a ProblemSketch
+    @classmethod
+    def from_constraints(
+        cls,
+        constraints_sketch: list,
+        marginals: list[float] | np.ndarray,
+        bit_string_length: int,
+    ) -> "Hamiltonian":
+        """Build a Hamiltonian from constraints and corresponding marginals."""
+        bit_string_length = ensure_int("bit_string_length", bit_string_length, min_value=1)
+        marginals = list(marginals)
+        if len(constraints_sketch) != len(marginals):
+            raise ValueError("constraints_sketch and marginals must have the same length.")
+
+        coeffs: dict[tuple[int, ...], float] = defaultdict(float)
+        for constraint, yi in zip(constraints_sketch, marginals):
+            weight = float(yi[0] if np.ndim(yi) > 0 else yi)
+            if np.isclose(weight, 0.0):
+                continue
+
+            fixed: list[tuple[int, int]] = []
+            if isinstance(constraint, dict):
+                for raw_idx, bit in constraint.items():
+                    idx = int(raw_idx)
+                    if idx < 0 or idx >= bit_string_length:
+                        raise ValueError(
+                            f"Qubit index {idx} out of range for n_qubits={bit_string_length}."
+                        )
+                    if bit == 0:
+                        fixed.append((idx, +1))
+                    elif bit == 1:
+                        fixed.append((idx, -1))
+                    else:
+                        raise ValueError(
+                            f"Bit value must be 0 or 1, got {bit} at position {idx}."
+                        )
+                fixed.sort()
+            else:
+                if len(constraint) != bit_string_length:
+                    raise ValueError(
+                        f"Pattern length {len(constraint)} does not match n_qubits={bit_string_length}."
+                    )
+                for idx, local_state in enumerate(constraint):
+                    if local_state == [1, 0]:
+                        fixed.append((idx, +1))
+                    elif local_state == [0, 1]:
+                        fixed.append((idx, -1))
+                    elif local_state == [1, 1]:
+                        continue
+                    else:
+                        raise ValueError(f"Invalid local pattern at qubit {idx}: {local_state}")
+
+            k = len(fixed)
+            base_coeff = weight / (2 ** k)
+            for mask in range(1 << k):
+                z_idx: list[int] = []
+                sign = 1.0
+                for bit_pos, (qubit_idx, local_sign) in enumerate(fixed):
+                    if (mask >> bit_pos) & 1:
+                        z_idx.append(qubit_idx)
+                        sign *= local_sign
+                coeffs[tuple(z_idx)] += base_coeff * sign
+
+        return cls(
+            terms={term: coef for term, coef in coeffs.items() if not np.isclose(coef, 0.0)},
+            num_qubits=bit_string_length,
+        )
+
+    @classmethod
+    def from_problem_sketch(cls, problem_sketch: Any) -> "Hamiltonian":
+        """Build a Hamiltonian from a ProblemSketch instance."""
+        from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
+        from ..sketch_map import ConstraintSketchMap
+
+        ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+        if not isinstance(problem_sketch.sketch_map, ConstraintSketchMap):
+            raise TypeError("problem_sketch.sketch_map must be a ConstraintSketchMap.")
+        if not problem_sketch.sketch_values:
+            raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
+
+        bit_string_length = int(problem_sketch.problem_size)
+        if isinstance(problem_sketch, RestrictedProblemSketch):
+            bit_string_length = int(problem_sketch.restricted_problem_size)
+
+        return cls.from_constraints(
+            constraints_sketch=problem_sketch.sketch_map.map,
+            marginals=problem_sketch.sketch_values,
+            bit_string_length=bit_string_length,
+        )
 
 
 @dataclass
