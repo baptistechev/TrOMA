@@ -42,7 +42,7 @@ def estimate_matching_pursuit_qpu_cost(
     optimizer:
         A bound QAOA optimizer produced by ``bind_optimizer("qaoa", ...)``.
         The following keyword arguments must have been pre-bound:
-        ``sampler``, ``number_shots``, ``number_layers``.
+        ``backend``, ``number_shots``, ``number_layers``.
         ``optimizer_options["maxiter"]`` is used as the expected number of
         objective evaluations when present.
     matching_pursuit_iterations:
@@ -60,21 +60,17 @@ def estimate_matching_pursuit_qpu_cost(
         raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
 
     kwargs = optimizer._default_kwargs
-    sampler = kwargs["sampler"]
+    backend = kwargs["backend"]
     number_shots = kwargs["number_shots"]
     num_layers = kwargs["number_layers"]
     optimizer_options = kwargs.get("optimizer_options") or {}
     expected_objective_evaluations = optimizer_options.get("maxiter", 100)
 
-    backend = getattr(sampler, "mode", None)
     if backend is None:
-        backend = getattr(sampler, "_backend", None)
-    if backend is None:
-        backend_getter = getattr(sampler, "backend", None)
-        if callable(backend_getter):
-            backend = backend_getter()
-    if backend is None:
-        raise ValueError("Could not resolve a backend from the bound sampler.")
+        raise ValueError(
+            "Could not resolve a backend from the bound optimizer. "
+            "Provide optimizer kwargs with 'backend'."
+        )
 
     hamiltonian = Hamiltonian.from_problem_sketch(problem_sketch)
     qaoa_circuit = create_qaoa_circ(hamiltonian, num_layers=num_layers)

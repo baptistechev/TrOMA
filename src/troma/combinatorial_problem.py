@@ -39,10 +39,11 @@ class CombinatorialProblem:
         n_samples: int,
         length: int,
         dimension: int,
+        seed: int | np.random.Generator | None = None,
     ) -> tuple[np.ndarray, list[DitString]]:
         """Uniform random sampler over the dit-string space."""
         total_states = dimension ** length
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
         indexes = rng.integers(0, total_states, size=n_samples, dtype=np.int64)
         dit_strings = [DitString.from_integer(int(i), length, dimension) for i in indexes]
         return indexes, dit_strings
@@ -94,6 +95,7 @@ class CombinatorialProblem:
         sampling_function: Callable | None = None,
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
+        seed: int | np.random.Generator | None = None,
     ) -> Sample:
         """Sample the problem by evaluating the objective on a random subset of the search space.
 
@@ -109,6 +111,9 @@ class CombinatorialProblem:
         threshold_parameter : float, "Auto", or None, optional
             Samples whose objective value is below the threshold are discarded.
             ``"Auto"`` sets the threshold to the 90th percentile of non-zero values.
+        seed : int, np.random.Generator, or None, optional
+            Seed or Generator for reproducibility in the sampling function.
+            Defaults to None (random).
         """
         n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
@@ -121,6 +126,7 @@ class CombinatorialProblem:
 
         indexes, dit_strings = sampling_function(
             n_samples, self.problem_size, self.problem_dimension,
+            seed=seed,
             **(sampling_args or {}),
         )
         self.sample = self._evaluate_and_filter(
@@ -254,6 +260,7 @@ class RestrictedProblem(CombinatorialProblem):
         sampling_function: Callable | None = None,
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
+        seed: int | np.random.Generator | None = None,
     ) -> Sample:
         """Sample the restricted problem.
 
@@ -266,7 +273,7 @@ class RestrictedProblem(CombinatorialProblem):
             self.restriction.dit_restrictions is None
             and self.restriction.dit_value_restrictions is None
         ):
-            return super().sampling(n_samples, sampling_function, sampling_args, threshold_parameter)
+            return super().sampling(n_samples, sampling_function, sampling_args, threshold_parameter, seed)
 
         n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
@@ -280,6 +287,7 @@ class RestrictedProblem(CombinatorialProblem):
         # Sample in the restricted space.
         indexes_rest, dit_strings_rest = sampling_function(
             n_samples, self.restricted_problem_size, self.restricted_problem_dimension,
+            seed=seed,
             **(sampling_args or {}),
         )
 

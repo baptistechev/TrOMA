@@ -9,11 +9,15 @@ import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2
 from qiskit import transpile
+from qamomile.optimization.qaoa import QAOAConverter
+from qamomile.optimization.aoa import AOAConverter
+from qamomile.qiskit import QiskitTranspiler
 
+from .qamomile_addon import IBMRuntimeExecutor
 from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ._quantum_map import create_qaoa_circ as _create_qaoa_circ
-from ..core.structure import DitString, Hamiltonian
+from ..core.structure import DitString
 from .._validation import _Validator
 
 
@@ -28,7 +32,7 @@ def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) ->
         Problem sketch containing nearest-neighbor binary marginals.
     number_iter : int, optional
         The number of iterations for the digital annealing algorithm. The default is 1000.
-    
+
     Returns
     -------
     int
@@ -44,7 +48,7 @@ def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) ->
         if isinstance(problem_sketch, RestrictedProblemSketch)
         else problem_sketch.problem_size
     )
-    constraints = problem_sketch.sketch_map.map
+
     problem_dimension = (
         problem_sketch.restricted_problem_dimension
         if isinstance(problem_sketch, RestrictedProblemSketch)
@@ -55,11 +59,11 @@ def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) ->
     if len(marginals) == 0 or len(marginals) % 4 != 0:
         raise ValueError("marginals length must be a positive multiple of 4 for nearest-neighbor QUBO marginals.")
 
-    #Define spin-chain Ising Hamiltonian from the marginals
+    #Define spin-chain Ising Hamiltonian from the problem sketch
     n = len(marginals)//4 + 1
     if n != bit_string_length:
         raise ValueError("marginals are inconsistent with problem_sketch size for nearest-neighbor QUBO.")
-    H = Hamiltonian.from_constraints(constraints, marginals, bit_string_length=n)
+    H = problem_sketch.to_hamiltonian()
 
     #Convert the Hamiltonian to the format required by the neal library
     h = {i: - H.terms.get((i,), 0.0) for i in range(n)}
@@ -71,44 +75,14 @@ def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) ->
     return DitString(config, dimension=2).to_integer()
 
 
-def QAOA(
+def _validate_variational_inputs(
     problem_sketch: ProblemSketch,
-    number_layers: int = 4,
-    method: str = "COBYLA",
-    sampler: Any | None = None,
-    number_shots: int = 4096,
-    optimizer_options: dict | None = None,
-) -> int:
-    """
-    Perform Quantum Approximate Optimization Algorithm (QAOA) to find a solution to the optimization problem defined by the marginals and constraints.
-    The function assumes that the optimization problem can be mapped to a Hamiltonian defined on qubits, where the terms in the Hamiltonian correspond to the patterns in the constraints_sketch.
-    Applicable on bit strings of any length, and can handle arbitrary patterns of constraints, including those that do not correspond to nearest neighbor interactions.
-
-    Parameters
-    ----------
-    problem_sketch : ProblemSketch
-        Problem sketch containing marginals and a ConstraintSketchMap.
-    number_layers : int, optional
-        The number of layers in the QAOA circuit. The default is 4.
-    method : str, optional
-        The optimization method to use for finding the optimal parameters of the QAOA circuit. The default is "COBYLA".
-    sampler : qiskit provider, optional
-        The quantum sampler to use for running the QAOA circuit. The default is None, which uses the AerSimulator().
-    number_shots : int, optional
-        The number of shots to use when running the QAOA circuit. The default is 4096.
-    optimizer_options : dict, optional
-        Additional keyword options forwarded to ``scipy.optimize.minimize``. This can be used, for example,
-        to limit the number of optimizer evaluations with entries such as ``{"maxiter": 30}``.
-    
-    Returns
-    ------
-    int
-        The index of the bit string that maximizes the sum of the marginals, as found by the QAOA algorithm.
-    """
-
-    #Security checks on the inputs
-    #-----------------------------
-
+    number_layers: int,
+    number_shots: int,
+    method: str,
+    optimizer_options: dict | None,
+    sampler_options: dict | None,
+) -> tuple[list, int, int, int]:
     if problem_sketch.sketch_values is None:
         raise ValueError("problem_sketch.sketch_values must be defined before optimization.")
 
@@ -129,91 +103,149 @@ def QAOA(
     number_shots = _Validator.ensure_int("number_shots", number_shots, min_value=1)
     _Validator.ensure_str("method", method)
     _Validator.ensure_optional_dict("optimizer_options", optimizer_options)
-    #-----------------------------
-    
+    _Validator.ensure_optional_dict("sampler_options", sampler_options)
+    return marginals, bit_string_length, number_layers, number_shots
 
-    #Init the sampler if not provided as it is used in the cost function, and set the number of shots
-    if sampler is None:
+
+def _build_sampler(
+    backend: Any | None,
+    number_shots: int,
+    sampler_options: dict | None,
+) -> tuple[SamplerV2, Any]:
+    if backend is None:
         backend = AerSimulator()
-        sampler = SamplerV2(mode=backend, options={"default_shots": number_shots})
-    sampler.options.default_shots = number_shots
 
-    def _objective_function(config: Any) -> float:
-        if isinstance(config, str):
-            config = [int(bit) for bit in config]
-        config_index = DitString(list(config), dimension=2).to_integer('L')
-        return float(np.dot(- np.asarray(marginals), problem_sketch.sketch_map.reconstruct_structured_matrix_column(config_index)))
-
-    def _bind_qaoa_parameters(circuit: Any, theta: Any) -> Any:
-        beta_parameters = circuit.metadata["beta_parameters"]
-        gamma_parameters = circuit.metadata["gamma_parameters"]
-        theta = np.asarray(theta, dtype=float).ravel()
-        if theta.size != 2 * number_layers:
-            raise ValueError("theta length must match 2 * number_layers.")
-        beta_values = theta[:number_layers]
-        gamma_values = theta[number_layers:]
-        parameter_map = {
-            parameter: float(value)
-            for parameter, value in zip(beta_parameters, beta_values)
-        }
-        parameter_map.update(
-            {parameter: float(value) for parameter, value in zip(gamma_parameters, gamma_values)}
+    sampler_options_dict = dict(sampler_options or {})
+    max_execution_time = sampler_options_dict.get("max_execution_time")
+    if max_execution_time is not None:
+        max_execution_time = _Validator.ensure_int(
+            "sampler_options['max_execution_time']",
+            max_execution_time,
+            min_value=1,
         )
-        return circuit.assign_parameters(parameter_map, inplace=False)
 
-    def _get_count_from_backend(sampler: Any, circuit: Any) -> dict:
-        job = sampler.run([circuit])
+    runtime_options = {"default_shots": number_shots}
+    runtime_options.update(sampler_options_dict)
+
+    sampler = SamplerV2(mode=backend, options=runtime_options)
+    sampler.options.default_shots = number_shots
+    if max_execution_time is not None:
+        sampler.options.max_execution_time = max_execution_time
+    return sampler, backend
+
+
+def _run_variational(
+    converter: QAOAConverter,
+    executable,
+    my_executor: IBMRuntimeExecutor,
+    number_layers: int,
+    number_shots: int,
+    method: str,
+    optimizer_options: dict | None,
+) -> int:
+    def cost_fn(params):
+        gammas = list(params[:number_layers])
+        betas = list(params[number_layers:])
+        job = executable.sample(
+            my_executor,
+            shots=number_shots,
+            bindings={"gammas": gammas, "betas": betas},
+        )
         result = job.result()
-        return result[0].data.meas.get_counts()
-
-    def _compute_expectation(counts: dict) -> float:
-        weighted_sum = 0
-        for bitstring, shot_count in counts.items():
-            objective_value = _objective_function(bitstring)
-            weighted_sum += objective_value * shot_count
-        total_shots = max(sum(counts.values()), 1)
-        return weighted_sum / total_shots
-
-    def cost_function(theta: np.ndarray) -> float:
-        binded_circuit = _bind_qaoa_parameters(qaoa_circuit, theta)
-
-        #Run the sampling on backend
-        counts = _get_count_from_backend(sampler, binded_circuit)
-
-        #Get the expectation value from counts
-        return _compute_expectation(counts)
-
-    def sample_best_state(qaoa_circuit, optimal_theta):
-        """
-        Return the best state sampled from QAOA with the optimal parameters.
-        """
-        binded_circuit = _bind_qaoa_parameters(qaoa_circuit, optimal_theta)
-        counts = _get_count_from_backend(sampler, binded_circuit)
-        return min(counts, key=_objective_function)
+        decoded = converter.decode_to_binary_sampleset(result)
+        return -decoded.energy_mean()
 
     number_parameters = 2 * number_layers
-    hamiltonian = Hamiltonian.from_constraints(
-        bit_constraints,
-        marginals,
-        bit_string_length=bit_string_length,
-    )
-    qaoa_circuit = _create_qaoa_circ(
-                        hamiltonian,
-                        num_layers=number_layers,
-                    )
-    qaoa_circuit = transpile(qaoa_circuit, backend=sampler.backend())
-
-
-    bounds = np.array([[-np.pi, np.pi]]*number_parameters, dtype=float)
+    bounds = np.array([[-np.pi, np.pi]] * number_parameters, dtype=float)
     res = sk_opt.minimize(
-        cost_function,
+        cost_fn,
         x0=np.ones(number_parameters),
         bounds=bounds,
         method=method,
         options=dict(optimizer_options or {}),
     )
 
-    optimal_theta = res.x
-    best_conf = sample_best_state(qaoa_circuit, optimal_theta)
+    gammas_opt = list(res.x[:number_layers])
+    betas_opt = list(res.x[number_layers:])
+    sample_result = executable.sample(
+        my_executor,
+        shots=number_shots,
+        bindings={"gammas": gammas_opt, "betas": betas_opt},
+    ).result()
+    sample_set = converter.decode(sample_result)
 
-    return DitString([int(bit) for bit in best_conf], dimension=2).to_integer('L')
+    max_idx = sample_set.energy.index(max(sample_set.energy))
+    best = sample_set.samples[max_idx]
+    return DitString(best.values()).to_integer('L')
+
+
+def QAOA(
+    problem_sketch: ProblemSketch,
+    number_layers: int = 4,
+    method: str = "COBYLA",
+    backend: Any | None = None,
+    number_shots: int = 4096,
+    optimizer_options: dict | None = None,
+    sampler_options: dict | None = None,
+) -> int:
+    """
+    """
+    _, _, number_layers, number_shots = _validate_variational_inputs(
+        problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
+    )
+
+    sampler, backend = _build_sampler(backend, number_shots, sampler_options)
+
+    hubo_model = problem_sketch.to_hubo()
+
+    converter = QAOAConverter(hubo_model)
+    converter.spin_model = converter.spin_model.normalize_by_abs_max()
+    
+    executable = converter.transpile(QiskitTranspiler(), p=number_layers)
+    my_executor = IBMRuntimeExecutor(sampler, backend)
+
+    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)
+
+
+def AOA(
+    problem_sketch: ProblemSketch,
+    number_layers: int = 4,
+    method: str = "COBYLA",
+    backend: Any | None = None,
+    number_shots: int = 4096,
+    initial_state: str = "dicke",
+    hamming_weight: int = 1,
+    mixer: str = "ring",
+    pair_indices_mixer: np.ndarray | None = None,
+    block_size: int | None = None,
+    optimizer_options: dict | None = None,
+    sampler_options: dict | None = None,
+) -> int:
+    """
+    """
+    _, _, number_layers, number_shots = _validate_variational_inputs(
+        problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
+    )
+    hamming_weight = _Validator.ensure_int("hamming_weight", hamming_weight, min_value=1)
+    _Validator.ensure_str("initial_state", initial_state)
+    _Validator.ensure_str("mixer", mixer)
+
+    sampler, backend = _build_sampler(backend, number_shots, sampler_options)
+
+    hubo_model = problem_sketch.to_hubo()
+
+    converter = AOAConverter(hubo_model)
+    converter.spin_model = converter.spin_model.normalize_by_abs_max()
+    
+    executable = converter.transpile(
+        QiskitTranspiler(),
+        p=number_layers,
+        initial_state=initial_state,
+        hamming_weight=hamming_weight,
+        mixer=mixer,
+        pair_indices_mixer=pair_indices_mixer,
+        block_size=block_size,
+    )
+    my_executor = IBMRuntimeExecutor(sampler, backend)
+
+    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)

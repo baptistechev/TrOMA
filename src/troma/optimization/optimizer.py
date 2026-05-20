@@ -100,6 +100,7 @@ _OPTIMIZER_REGISTRY: dict[str, tuple[str, str]] = {
     "simulated_annealing": ("classical", "simulated_annealing"),
     "digital_annealing": ("quantum", "digital_annealing"),
     "qaoa": ("quantum", "QAOA"),
+    "aoa": ("quantum", "AOA"),
 }
 
 
@@ -167,6 +168,8 @@ def get_optimizer(name: str) -> Optimizer:
             ``optimizer.optimize(marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``.
         - ``get_optimizer("qaoa")`` returns an optimizer that can be used as
             ``optimizer.optimize(marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3)``.
+        - ``get_optimizer("aoa")`` returns an optimizer that can be used as
+            ``optimizer.optimize(problem_sketch, number_layers=3, mixer="ring", hamming_weight=1)``.
     """
     _Validator.ensure_nonempty_str("name", name)
     function = _resolve_optimizer_function(name)
@@ -190,7 +193,8 @@ def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
         - ``bind_optimizer("brute_force_max", marginals, sketch=sketch)``
         - ``bind_optimizer("spin_chain_nn_max", marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``
         - ``bind_optimizer("dual_annealing", marginals, dit_constraints=constraints, dit_string_length=6, dit_dimension=2)``
-        - ``bind_optimizer("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, number_shots=2048)``
+        - ``bind_optimizer("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, number_shots=2048, sampler_options={"max_execution_time": 6})``
+        - ``bind_optimizer("aoa", number_layers=3, mixer="ring", hamming_weight=1)``
     
     Returns
     -------
@@ -223,6 +227,7 @@ def optimize(name: str, *args: Any, **kwargs: Any) -> int:
         - ``optimize("simulated_annealing", marginals, dit_constraints=constraints, dit_string_length=6, max_iter=500)``
         - ``optimize("digital_annealing", marginals, number_iter=2000)``
         - ``optimize("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, method="COBYLA")``
+        - ``optimize("aoa", problem_sketch, number_layers=3, mixer="ring", hamming_weight=1)``
     
     Returns
     -------

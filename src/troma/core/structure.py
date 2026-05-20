@@ -1,6 +1,13 @@
 from __future__ import annotations
+from ast import expr
 from typing import Any
 import numpy as np
+from functools import reduce
+from operator import mul
+
+from qamomile.optimization.binary_model.expr import spin
+from qamomile.optimization.binary_model.model import BinaryModel
+from qamomile.optimization.binary_model.expr import VarType
 
 # --- MatchingPursuitResults (moved from matching_pursuit.py) ---
 from dataclasses import dataclass
@@ -435,22 +442,31 @@ class Hamiltonian:
             validated_terms[term] = float(raw_coeff)
         self.terms = validated_terms
 
-    #Need to be removed after changing the optimizations method to take a ProblemSketch
     @classmethod
-    def from_constraints(
-        cls,
-        constraints_sketch: list,
-        marginals: list[float] | np.ndarray,
-        bit_string_length: int,
-    ) -> "Hamiltonian":
-        """Build a Hamiltonian from constraints and corresponding marginals."""
+    def from_problem_sketch(cls, problem_sketch: Any) -> "Hamiltonian":
+        """Build a Hamiltonian from a ProblemSketch instance."""
+        from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
+        from ..sketch_map import ConstraintSketchMap
+
+        _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+        _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
+        if problem_sketch.sketch_values is None or len(problem_sketch.sketch_values) == 0:
+            raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
+
+        bit_string_length = int(problem_sketch.problem_size)
+        if isinstance(problem_sketch, RestrictedProblemSketch):
+            bit_string_length = int(problem_sketch.restricted_problem_size)
+
+        constraints_sketch = problem_sketch.sketch_map.map
+        marginals = problem_sketch.sketch_values
+
         bit_string_length = _Validator.ensure_int("bit_string_length", bit_string_length, min_value=1)
-        marginals = list(marginals)
-        if len(constraints_sketch) != len(marginals):
+        marginals_list = list(marginals)
+        if len(constraints_sketch) != len(marginals_list):
             raise ValueError("constraints_sketch and marginals must have the same length.")
 
         coeffs: dict[tuple[int, ...], float] = defaultdict(float)
-        for constraint, yi in zip(constraints_sketch, marginals):
+        for constraint, yi in zip(constraints_sketch, marginals_list):
             weight = float(yi[0] if np.ndim(yi) > 0 else yi)
             if np.isclose(weight, 0.0):
                 continue
@@ -499,30 +515,17 @@ class Hamiltonian:
                 coeffs[tuple(z_idx)] += base_coeff * sign
 
         return cls(
-            terms={term: coef for term, coef in coeffs.items() if not np.isclose(coef, 0.0)},
+            terms={term: coef for term, coef in coeffs.items() if term and not np.isclose(coef, 0.0)},
             num_qubits=bit_string_length,
         )
-
-    @classmethod
-    def from_problem_sketch(cls, problem_sketch: Any) -> "Hamiltonian":
-        """Build a Hamiltonian from a ProblemSketch instance."""
-        from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
-        from ..sketch_map import ConstraintSketchMap
-
-        _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
-        _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
-        if not problem_sketch.sketch_values:
-            raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
-
-        bit_string_length = int(problem_sketch.problem_size)
-        if isinstance(problem_sketch, RestrictedProblemSketch):
-            bit_string_length = int(problem_sketch.restricted_problem_size)
-
-        return cls.from_constraints(
-            constraints_sketch=problem_sketch.sketch_map.map,
-            marginals=problem_sketch.sketch_values,
-            bit_string_length=bit_string_length,
-        )
+    
+    def to_ising_model(self):
+        expr = sum(c * reduce(mul, (spin(i) for i in k), 1) for k, c in self.terms.items())
+        return BinaryModel(expr)
+    
+    def to_hubo(self):
+        ising_model = self.to_ising_model()
+        return ising_model.change_vartype(VarType.BINARY)
 
 
 @dataclass
