@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import concurrent.futures
 import enum
+import os
 from collections.abc import Callable
 from functools import singledispatchmethod
+from itertools import repeat
 from typing import Any
 
 import numpy as np
@@ -11,6 +14,10 @@ from .sketch_map import ConstraintSketchMap, SketchMap
 from .core.structure import DitString, Sample, Restriction
 from .core.embedding import reverse_spectrum_restriction
 from ._validation import _Validator
+
+
+def _evaluate_objective(objective_function: Callable, dit_string: DitString) -> float:
+    return float(objective_function(np.asarray(dit_string)))
 
 
 class SketchType(enum.StrEnum):
@@ -55,6 +62,8 @@ class CombinatorialProblem:
         objective_function: Callable,
         threshold_parameter: float | str | None,
         full_dit_strings: list[DitString] | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
     ) -> Sample:
         """Evaluate the objective, apply threshold, return sorted non-zero Sample.
 
@@ -66,7 +75,32 @@ class CombinatorialProblem:
             Used by RestrictedProblem so the objective always receives full-space inputs.
         """
         eval_strings = full_dit_strings if full_dit_strings is not None else dit_strings
-        values = np.array([objective_function(np.asarray(s)) for s in eval_strings])
+        parallel_backend = _Validator.ensure_str("parallel_backend", parallel_backend)
+        _Validator.ensure_one_of("parallel_backend", parallel_backend, {"processes", "threads"})
+
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        else:
+            n_jobs = _Validator.ensure_int("n_jobs", n_jobs, min_value=1)
+
+        if n_jobs == 1 or len(eval_strings) <= 1:
+            values = np.array([objective_function(np.asarray(s)) for s in eval_strings], dtype=float)
+        else:
+            executor_cls = (
+                concurrent.futures.ProcessPoolExecutor
+                if parallel_backend == "processes"
+                else concurrent.futures.ThreadPoolExecutor
+            )
+            with executor_cls(max_workers=n_jobs) as executor:
+                values = np.fromiter(
+                    executor.map(
+                        _evaluate_objective,
+                        repeat(objective_function),
+                        eval_strings,
+                    ),
+                    dtype=float,
+                    count=len(eval_strings),
+                )
 
         if threshold_parameter == "Auto":
             non_zero = values[values != 0]
@@ -96,6 +130,8 @@ class CombinatorialProblem:
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
         seed: int | np.random.Generator | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
     ) -> Sample:
         """Sample the problem by evaluating the objective on a random subset of the search space.
 
@@ -114,6 +150,13 @@ class CombinatorialProblem:
         seed : int, np.random.Generator, or None, optional
             Seed or Generator for reproducibility in the sampling function.
             Defaults to None (random).
+        n_jobs : int, optional
+            Number of workers used to evaluate the objective. Use ``-1`` to use all CPUs.
+            Defaults to 1.
+        parallel_backend : {"processes", "threads"}, optional
+            Worker backend used when ``n_jobs > 1``. ``"processes"`` is appropriate for
+            CPU-bound Python objectives; ``"threads"`` can be used for objectives that
+            release the GIL or cannot be pickled.
         """
         n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
@@ -130,7 +173,12 @@ class CombinatorialProblem:
             **(sampling_args or {}),
         )
         self.sample = self._evaluate_and_filter(
-            indexes, dit_strings, self.objective_function, threshold_parameter,
+            indexes,
+            dit_strings,
+            self.objective_function,
+            threshold_parameter,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
         )
         return self.sample
 
@@ -201,6 +249,8 @@ class CombinatorialProblem:
         sampling_function: Callable | None = None,
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
     ) -> Any:
         """Sample and then sketch in one call."""
         self.sampling(
@@ -208,6 +258,8 @@ class CombinatorialProblem:
             sampling_function=sampling_function,
             sampling_args=sampling_args,
             threshold_parameter=threshold_parameter,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
         )
         return self.sketching(constraints)
 
@@ -261,6 +313,8 @@ class RestrictedProblem(CombinatorialProblem):
         sampling_args: dict | None = None,
         threshold_parameter: float | str | None = None,
         seed: int | np.random.Generator | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
     ) -> Sample:
         """Sample the restricted problem.
 
@@ -273,7 +327,15 @@ class RestrictedProblem(CombinatorialProblem):
             self.restriction.dit_restrictions is None
             and self.restriction.dit_value_restrictions is None
         ):
-            return super().sampling(n_samples, sampling_function, sampling_args, threshold_parameter, seed)
+            return super().sampling(
+                n_samples,
+                sampling_function,
+                sampling_args,
+                threshold_parameter,
+                seed,
+                n_jobs,
+                parallel_backend,
+            )
 
         n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
@@ -302,8 +364,13 @@ class RestrictedProblem(CombinatorialProblem):
 
         # Evaluate, threshold and keep non-zero samples (store restricted dit strings).
         self.sample = self._evaluate_and_filter(
-            indexes_rest, dit_strings_rest, self.objective_function, threshold_parameter,
+            indexes_rest,
+            dit_strings_rest,
+            self.objective_function,
+            threshold_parameter,
             full_dit_strings=dit_strings_full,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
         )
         return self.sample
 
