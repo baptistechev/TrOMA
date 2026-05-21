@@ -136,13 +136,14 @@ def _build_executor(
     backend: Any | None,
     number_shots: int,
     sampler_options: dict | None,
+    verbose: bool = False,
 ) -> tuple[Any, Any]:
     """Return (executor, backend), choosing AerLocalExecutor for local AerSimulator
     backends and IBMRuntimeExecutor (via SamplerV2) for everything else."""
     if backend is None or isinstance(backend, AerSimulator):
         if backend is None:
             backend = AerSimulator()
-        return AerLocalExecutor(backend), backend
+        return AerLocalExecutor(backend, verbose=verbose), backend
 
     sampler = _build_runtime_sampler(backend, number_shots, sampler_options)
     return IBMRuntimeExecutor(sampler, backend), backend
@@ -201,6 +202,7 @@ def QAOA(
     number_shots: int = 4096,
     optimizer_options: dict | None = None,
     sampler_options: dict | None = None,
+    verbose: bool = False,
 ) -> int:
     """
     """
@@ -208,7 +210,7 @@ def QAOA(
         problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
     )
 
-    my_executor, backend = _build_executor(backend, number_shots, sampler_options)
+    my_executor, backend = _build_executor(backend, number_shots, sampler_options, verbose=verbose)
 
     hubo_model = problem_sketch.to_hubo()
 
@@ -233,6 +235,7 @@ def AOA(
     block_size: int | None = None,
     optimizer_options: dict | None = None,
     sampler_options: dict | None = None,
+    verbose: bool = False,
 ) -> int:
     """
     """
@@ -243,7 +246,7 @@ def AOA(
     _Validator.ensure_str("initial_state", initial_state)
     _Validator.ensure_str("mixer", mixer)
 
-    my_executor, backend = _build_executor(backend, number_shots, sampler_options)
+    my_executor, backend = _build_executor(backend, number_shots, sampler_options, verbose=verbose)
 
     hubo_model = problem_sketch.to_hubo()
 
