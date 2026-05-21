@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 from typing import Any
 
 import numpy as np
@@ -62,6 +63,9 @@ def matchingpursuit_explicit(
 
     for _ in range(iteration_number):
         residue_sketch = problem_sketch.update_sketch(r)
+        if not residue_sketch.to_hamiltonian().terms:
+            warnings.warn("Early stop: residue reached zero.", stacklevel=2)
+            break
         t = optimizer.optimize(residue_sketch)
         At = _column_vector_to_array(sketch[:, t])
 
@@ -122,6 +126,9 @@ def matchingpursuit_abstract(
 
     for _ in range(iteration_number):
         residue_sketch = problem_sketch.update_sketch(r)
+        if not residue_sketch.to_hamiltonian().terms:
+            warnings.warn("Early stop: residue reached zero.", stacklevel=2)
+            break
         t = optimizer.optimize(residue_sketch)
 
         At = sketch_map.reconstruct_structured_matrix_column(t)

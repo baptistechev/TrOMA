@@ -520,6 +520,11 @@ class Hamiltonian:
         )
     
     def to_ising_model(self):
+        if not self.terms:
+            raise ValueError(
+                "Cannot convert Hamiltonian to Ising model: all terms are zero or absent. "
+                "This typically means the residue sketch is fully recovered (zero signal remaining)."
+            )
         expr = sum(c * reduce(mul, (spin(i) for i in k), 1) for k, c in self.terms.items())
         return BinaryModel(expr)
     
