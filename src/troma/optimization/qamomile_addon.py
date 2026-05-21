@@ -56,15 +56,14 @@ class AerLocalExecutor(QiskitExecutor):
     any re-wrapping or option-forwarding logic.  Use this for local CPU or
     GPU simulations (including tensor_network on NVIDIA GPUs).
 
-    Transpilation is cached: the pass manager runs once on the parametric
-    circuit template and the result is reused across all optimizer iterations
-    (Qamomile passes the same circuit object each time, only the angle values
-    change).  Each iteration only pays for parameter binding via
-    assign_parameters().
+    No external pass manager is used.  AerSimulator handles standard Qiskit
+    gates (RZZ, RXX, RX, CX, ...) natively in its C++ layer.  Running an
+    external preset pass manager would decompose RZZ -> CX+RZ+CX, multiplying
+    the two-qubit gate count ~3x and making tensor-network path-finding
+    intractable for circuits with many interactions.
 
-    Note: qiskit-aer's parameter_binds API is intentionally NOT used here
-    because the tensor_network backend passes unresolved symbolic parameters
-    to cuTensorNet, causing CUTENSORNET_STATUS_INVALID_VALUE errors.
+    Transpilation is still cached once (just measurements stripped/re-added),
+    so every optimizer iteration only pays for assign_parameters().
     """
 
     def __init__(self, backend, estimator=None, optimization_level=1, verbose=False):
@@ -72,27 +71,28 @@ class AerLocalExecutor(QiskitExecutor):
         Args:
             backend: A configured AerSimulator instance.
             estimator: Optional EstimatorV2 for expectation values.
-            optimization_level: Preset pass manager optimization level (0-3).
+            optimization_level: Kept for API compatibility; not used for
+                AerSimulator — native gate handling is always preferred.
             verbose: Print per-call timing and device info for the first 5
                      calls and every 50th call afterwards.
         """
         super().__init__(backend=backend, estimator=estimator)
         self._run_backend = backend
-        self._pm = generate_preset_pass_manager(
-            optimization_level=optimization_level, backend=backend
-        )
-        # Maps id(template_circuit) -> transpiled+measured parametric circuit.
+        # Maps id(template_circuit) -> measured parametric circuit (no decomp).
         self._transpiled_cache: dict[int, object] = {}
         self._verbose = verbose
         self._call_count = 0
 
     def bind_parameters(self, circuit, bindings, parameter_metadata):
-        """Transpile the template circuit once (cached), then bind on every iteration."""
+        """Cache the circuit once (measurements only), then bind per iteration."""
         cid = id(circuit)
         if cid not in self._transpiled_cache:
+            # Strip any existing measurements, add them back cleanly.
+            # Do NOT run a pass manager: external decomposition of gates like
+            # RZZ -> CX+RZ+CX multiplies gate count ~5x and causes cuTensorNet
+            # path-finding to fail or time out.
             stripped = circuit.remove_final_measurements(inplace=False)
-            transpiled = self._pm.run(stripped)
-            prepared = self._ensure_measurements(transpiled)
+            prepared = self._ensure_measurements(stripped)
             prepared.metadata[_AER_PREPARED] = True
             self._transpiled_cache[cid] = prepared
 
@@ -105,10 +105,10 @@ class AerLocalExecutor(QiskitExecutor):
 
     def execute(self, circuit, shots):
         if not circuit.metadata.get(_AER_PREPARED):
-            # Non-parametric circuit sent directly (no prior bind_parameters call).
-            circuit = circuit.remove_final_measurements(inplace=False)
-            circuit = self._pm.run(circuit)
-            circuit = self._ensure_measurements(circuit)
+            # Non-parametric circuit sent directly (no prior bind_parameters).
+            circuit = self._ensure_measurements(
+                circuit.remove_final_measurements(inplace=False)
+            )
 
         t0 = time.perf_counter()
         result = self._run_backend.run(circuit, shots=shots).result()
