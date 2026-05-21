@@ -135,6 +135,7 @@ def _build_sampler(
     if isinstance(backend, AerSimulator) and AerSamplerV2 is not None:
         aer_options = dict(sampler_options_dict)
         aer_options.pop("max_execution_time", None)
+        aer_options.pop("default_shots", None)
 
         backend_options = dict(aer_options.get("backend_options") or {})
         for key in ("method", "device", "max_memory_mb"):
@@ -144,7 +145,6 @@ def _build_sampler(
         if backend_options:
             aer_options["backend_options"] = backend_options
 
-        aer_options.setdefault("default_shots", number_shots)
         sampler = AerSamplerV2(options=aer_options)
     else:
         sampler = RuntimeSamplerV2(mode=backend, options=runtime_options)
