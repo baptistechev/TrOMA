@@ -7,7 +7,11 @@ import numpy as np
 import neal
 import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import SamplerV2
+try:
+    from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
+except Exception:  # pragma: no cover - compatibility fallback when aer primitive is unavailable
+    AerSamplerV2 = None
+from qiskit_ibm_runtime import SamplerV2 as RuntimeSamplerV2
 from qiskit import transpile
 from qamomile.optimization.qaoa import QAOAConverter
 from qamomile.optimization.aoa import AOAConverter
@@ -111,7 +115,7 @@ def _build_sampler(
     backend: Any | None,
     number_shots: int,
     sampler_options: dict | None,
-) -> tuple[SamplerV2, Any]:
+) -> tuple[Any, Any]:
     if backend is None:
         backend = AerSimulator()
 
@@ -127,10 +131,26 @@ def _build_sampler(
     runtime_options = {"default_shots": number_shots}
     runtime_options.update(sampler_options_dict)
 
-    sampler = SamplerV2(mode=backend, options=runtime_options)
-    sampler.options.default_shots = number_shots
-    if max_execution_time is not None:
-        sampler.options.max_execution_time = max_execution_time
+    # Local Aer backends (including GPU) should use qiskit-aer SamplerV2.
+    if isinstance(backend, AerSimulator) and AerSamplerV2 is not None:
+        aer_options = dict(sampler_options_dict)
+        aer_options.pop("max_execution_time", None)
+
+        backend_options = dict(aer_options.get("backend_options") or {})
+        for key in ("method", "device", "max_memory_mb"):
+            value = getattr(backend.options, key, None)
+            if value is not None:
+                backend_options.setdefault(key, value)
+        if backend_options:
+            aer_options["backend_options"] = backend_options
+
+        aer_options.setdefault("default_shots", number_shots)
+        sampler = AerSamplerV2(options=aer_options)
+    else:
+        sampler = RuntimeSamplerV2(mode=backend, options=runtime_options)
+        sampler.options.default_shots = number_shots
+        if max_execution_time is not None:
+            sampler.options.max_execution_time = max_execution_time
     return sampler, backend
 
 
