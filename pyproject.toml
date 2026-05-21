@@ -12,7 +12,6 @@ authors = [
 dependencies = [
   "numpy",
   "scipy",
-  "qiskit_aer",
   "dwave-neal",
   "qiskit_ibm_runtime"
 ]
