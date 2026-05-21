@@ -52,19 +52,19 @@ class AerLocalExecutor(QiskitExecutor):
     """QiskitExecutor that runs sampling directly on a local AerSimulator.
 
     Bypasses SamplerV2 so all options configured on the backend instance
-    (method, device, max_memory_mb, max_qubits, …) are honoured without
+    (method, device, max_memory_mb, max_qubits, ...) are honoured without
     any re-wrapping or option-forwarding logic.  Use this for local CPU or
     GPU simulations (including tensor_network on NVIDIA GPUs).
 
     Transpilation is cached: the pass manager runs once on the parametric
     circuit template and the result is reused across all optimizer iterations
     (Qamomile passes the same circuit object each time, only the angle values
-    change).
+    change).  Each iteration only pays for parameter binding via
+    assign_parameters().
 
-    Parameter binding uses qiskit-aer's parameter_binds API so the C++
-    backend receives the same parametric circuit object on every call and
-    can cache its compiled representation, rather than seeing a freshly
-    bound (structurally identical but object-distinct) circuit each time.
+    Note: qiskit-aer's parameter_binds API is intentionally NOT used here
+    because the tensor_network backend passes unresolved symbolic parameters
+    to cuTensorNet, causing CUTENSORNET_STATUS_INVALID_VALUE errors.
     """
 
     def __init__(self, backend, estimator=None, optimization_level=1, verbose=False):
@@ -73,7 +73,7 @@ class AerLocalExecutor(QiskitExecutor):
             backend: A configured AerSimulator instance.
             estimator: Optional EstimatorV2 for expectation values.
             optimization_level: Preset pass manager optimization level (0-3).
-            verbose: Print per-call timing and device info for the first few
+            verbose: Print per-call timing and device info for the first 5
                      calls and every 50th call afterwards.
         """
         super().__init__(backend=backend, estimator=estimator)
@@ -83,13 +83,11 @@ class AerLocalExecutor(QiskitExecutor):
         )
         # Maps id(template_circuit) -> transpiled+measured parametric circuit.
         self._transpiled_cache: dict[int, object] = {}
-        # Pending parameter bindings set by bind_parameters, consumed by execute.
-        self._pending_bindings: dict | None = None
         self._verbose = verbose
         self._call_count = 0
 
     def bind_parameters(self, circuit, bindings, parameter_metadata):
-        """Transpile the template circuit once (cached), store bindings for execute."""
+        """Transpile the template circuit once (cached), then bind on every iteration."""
         cid = id(circuit)
         if cid not in self._transpiled_cache:
             stripped = circuit.remove_final_measurements(inplace=False)
@@ -98,49 +96,34 @@ class AerLocalExecutor(QiskitExecutor):
             prepared.metadata[_AER_PREPARED] = True
             self._transpiled_cache[cid] = prepared
 
-        # Store {Qiskit Parameter → float} for the parameter_binds call in execute.
-        self._pending_bindings = {
+        qiskit_bindings = {
             p.backend_param: bindings[p.name]
             for p in parameter_metadata.parameters
             if p.name in bindings
         }
-        # Return the parametric (unbound) compiled circuit — execute will bind
-        # via parameter_binds so qiskit-aer sees the same circuit object every call.
-        return self._transpiled_cache[cid]
+        return self._transpiled_cache[cid].assign_parameters(qiskit_bindings)
 
     def execute(self, circuit, shots):
+        if not circuit.metadata.get(_AER_PREPARED):
+            # Non-parametric circuit sent directly (no prior bind_parameters call).
+            circuit = circuit.remove_final_measurements(inplace=False)
+            circuit = self._pm.run(circuit)
+            circuit = self._ensure_measurements(circuit)
+
         t0 = time.perf_counter()
-
-        if circuit.metadata.get(_AER_PREPARED) and self._pending_bindings is not None:
-            # Hot path: parametric circuit + pending bindings from bind_parameters.
-            # parameter_binds lets qiskit-aer handle substitution internally so it
-            # can cache the compiled circuit representation across calls.
-            result = self._run_backend.run(
-                circuit, shots=shots, parameter_binds=[self._pending_bindings]
-            ).result()
-            self._pending_bindings = None
-        else:
-            # Cold path: non-parametric circuit sent directly (no bind_parameters).
-            if not circuit.metadata.get(_AER_PREPARED):
-                circuit = circuit.remove_final_measurements(inplace=False)
-                circuit = self._pm.run(circuit)
-                circuit = self._ensure_measurements(circuit)
-            result = self._run_backend.run(circuit, shots=shots).result()
-
+        result = self._run_backend.run(circuit, shots=shots).result()
         t1 = time.perf_counter()
-        self._call_count += 1
 
+        self._call_count += 1
         if self._verbose and (self._call_count <= 5 or self._call_count % 50 == 0):
             meta = result.results[0].metadata
             sim_ms = result.results[0].time_taken * 1000
             total_ms = (t1 - t0) * 1000
-            device = meta.get("device", "?")
-            method = meta.get("method", "?")
             print(
                 f"[AerLocalExecutor #{self._call_count}] "
                 f"total={total_ms:.1f}ms  sim={sim_ms:.2f}ms  "
                 f"overhead={total_ms - sim_ms:.1f}ms  "
-                f"device={device}  method={method}  "
+                f"device={meta.get('device', '?')}  method={meta.get('method', '?')}  "
                 f"qubits={circuit.num_qubits}  gates={circuit.size()}"
             )
 
