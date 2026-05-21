@@ -43,6 +43,9 @@ class IBMRuntimeExecutor(QiskitExecutor):
         return getattr(data, reg_name).get_counts()
 
 
+_AER_PREPARED = "__aer_prepared__"
+
+
 class AerLocalExecutor(QiskitExecutor):
     """QiskitExecutor that runs sampling directly on a local AerSimulator.
 
@@ -50,6 +53,11 @@ class AerLocalExecutor(QiskitExecutor):
     (method, device, max_memory_mb, max_qubits, …) are honoured without
     any re-wrapping or option-forwarding logic.  Use this for local CPU or
     GPU simulations (including tensor_network on NVIDIA GPUs).
+
+    Transpilation is cached: the pass manager runs once on the parametric
+    circuit template and the result is reused across all optimizer iterations
+    (Qamomile passes the same circuit object each time, only the angle values
+    change).  Each iteration only pays for parameter binding.
     """
 
     def __init__(self, backend, estimator=None, optimization_level=1):
@@ -64,12 +72,35 @@ class AerLocalExecutor(QiskitExecutor):
         self._pm = generate_preset_pass_manager(
             optimization_level=optimization_level, backend=backend
         )
+        # Maps id(template_circuit) -> transpiled+measured parametric circuit.
+        self._transpiled_cache: dict[int, object] = {}
+
+    def bind_parameters(self, circuit, bindings, parameter_metadata):
+        """Transpile the template circuit once, then bind on every iteration."""
+        cid = id(circuit)
+        if cid not in self._transpiled_cache:
+            stripped = circuit.remove_final_measurements(inplace=False)
+            transpiled = self._pm.run(stripped)
+            prepared = self._ensure_measurements(transpiled)
+            # Mark so execute() knows this circuit is already compiled.
+            prepared.metadata[_AER_PREPARED] = True
+            self._transpiled_cache[cid] = prepared
+
+        qiskit_bindings = {
+            p.backend_param: bindings[p.name]
+            for p in parameter_metadata.parameters
+            if p.name in bindings
+        }
+        return self._transpiled_cache[cid].assign_parameters(qiskit_bindings)
 
     def execute(self, circuit, shots):
-        # Strip any measurements before ISA transpilation; HLS cannot synthesize them.
-        circuit = circuit.remove_final_measurements(inplace=False)
-        isa_circuit = self._pm.run(circuit)
-        isa_circuit = self._ensure_measurements(isa_circuit)
+        # Parametric circuits go through bind_parameters first, which marks
+        # them as already transpiled+measured.  Non-parametric circuits
+        # (no bind_parameters call) get the full pass-manager treatment here.
+        if not circuit.metadata.get(_AER_PREPARED):
+            circuit = circuit.remove_final_measurements(inplace=False)
+            circuit = self._pm.run(circuit)
+            circuit = self._ensure_measurements(circuit)
 
-        result = self._run_backend.run(isa_circuit, shots=shots).result()
+        result = self._run_backend.run(circuit, shots=shots).result()
         return result.get_counts(0)
