@@ -7,17 +7,13 @@ import numpy as np
 import neal
 import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
-try:
-    from qiskit_aer.primitives import SamplerV2 as AerSamplerV2
-except Exception:  # pragma: no cover - compatibility fallback when aer primitive is unavailable
-    AerSamplerV2 = None
 from qiskit_ibm_runtime import SamplerV2 as RuntimeSamplerV2
 from qiskit import transpile
 from qamomile.optimization.qaoa import QAOAConverter
 from qamomile.optimization.aoa import AOAConverter
 from qamomile.qiskit import QiskitTranspiler
 
-from .qamomile_addon import IBMRuntimeExecutor
+from .qamomile_addon import IBMRuntimeExecutor, AerLocalExecutor
 from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ._quantum_map import create_qaoa_circ as _create_qaoa_circ
@@ -111,14 +107,12 @@ def _validate_variational_inputs(
     return marginals, bit_string_length, number_layers, number_shots
 
 
-def _build_sampler(
-    backend: Any | None,
+def _build_runtime_sampler(
+    backend: Any,
     number_shots: int,
     sampler_options: dict | None,
-) -> tuple[Any, Any]:
-    if backend is None:
-        backend = AerSimulator()
-
+) -> Any:
+    """Build a RuntimeSamplerV2 for IBM Quantum hardware / cloud backends."""
     sampler_options_dict = dict(sampler_options or {})
     max_execution_time = sampler_options_dict.get("max_execution_time")
     if max_execution_time is not None:
@@ -131,27 +125,27 @@ def _build_sampler(
     runtime_options = {"default_shots": number_shots}
     runtime_options.update(sampler_options_dict)
 
-    # Local Aer backends (including GPU) should use qiskit-aer SamplerV2.
-    if isinstance(backend, AerSimulator) and AerSamplerV2 is not None:
-        aer_options = dict(sampler_options_dict)
-        aer_options.pop("max_execution_time", None)
-        aer_options.pop("default_shots", None)
+    sampler = RuntimeSamplerV2(mode=backend, options=runtime_options)
+    sampler.options.default_shots = number_shots
+    if max_execution_time is not None:
+        sampler.options.max_execution_time = max_execution_time
+    return sampler
 
-        backend_options = dict(aer_options.get("backend_options") or {})
-        for key in ("method", "device", "max_memory_mb"):
-            value = getattr(backend.options, key, None)
-            if value is not None:
-                backend_options.setdefault(key, value)
-        if backend_options:
-            aer_options["backend_options"] = backend_options
 
-        sampler = AerSamplerV2(options=aer_options)
-    else:
-        sampler = RuntimeSamplerV2(mode=backend, options=runtime_options)
-        sampler.options.default_shots = number_shots
-        if max_execution_time is not None:
-            sampler.options.max_execution_time = max_execution_time
-    return sampler, backend
+def _build_executor(
+    backend: Any | None,
+    number_shots: int,
+    sampler_options: dict | None,
+) -> tuple[Any, Any]:
+    """Return (executor, backend), choosing AerLocalExecutor for local AerSimulator
+    backends and IBMRuntimeExecutor (via SamplerV2) for everything else."""
+    if backend is None or isinstance(backend, AerSimulator):
+        if backend is None:
+            backend = AerSimulator()
+        return AerLocalExecutor(backend), backend
+
+    sampler = _build_runtime_sampler(backend, number_shots, sampler_options)
+    return IBMRuntimeExecutor(sampler, backend), backend
 
 
 def _run_variational(
@@ -214,15 +208,14 @@ def QAOA(
         problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
     )
 
-    sampler, backend = _build_sampler(backend, number_shots, sampler_options)
+    my_executor, backend = _build_executor(backend, number_shots, sampler_options)
 
     hubo_model = problem_sketch.to_hubo()
 
     converter = QAOAConverter(hubo_model)
     converter.spin_model = converter.spin_model.normalize_by_abs_max()
-    
+
     executable = converter.transpile(QiskitTranspiler(), p=number_layers)
-    my_executor = IBMRuntimeExecutor(sampler, backend)
 
     return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)
 
@@ -250,13 +243,13 @@ def AOA(
     _Validator.ensure_str("initial_state", initial_state)
     _Validator.ensure_str("mixer", mixer)
 
-    sampler, backend = _build_sampler(backend, number_shots, sampler_options)
+    my_executor, backend = _build_executor(backend, number_shots, sampler_options)
 
     hubo_model = problem_sketch.to_hubo()
 
     converter = AOAConverter(hubo_model)
     converter.spin_model = converter.spin_model.normalize_by_abs_max()
-    
+
     executable = converter.transpile(
         QiskitTranspiler(),
         p=number_layers,
@@ -266,6 +259,5 @@ def AOA(
         pair_indices_mixer=pair_indices_mixer,
         block_size=block_size,
     )
-    my_executor = IBMRuntimeExecutor(sampler, backend)
 
     return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)
