@@ -526,6 +526,15 @@ class Hamiltonian:
                 "This typically means the residue sketch is fully recovered (zero signal remaining)."
             )
         expr = sum(c * reduce(mul, (spin(i) for i in k), 1) for k, c in self.terms.items())
+        # Pad variables that don't appear in any term so BinaryModel always sees
+        # all num_qubits variables. Without this, BinaryModel compacts the index
+        # space and the resulting spin_model.num_bits < num_qubits, which causes
+        # AOA to raise "Require 0 <= hamming_weight <= block_size" when the
+        # caller passes hamming_weight = n_closed_switches.
+        present = {i for k in self.terms for i in k}
+        for i in range(self.num_qubits):
+            if i not in present:
+                expr = expr + 0 * spin(i)
         return BinaryModel(expr)
     
     def to_hubo(self):

@@ -191,7 +191,7 @@ def _run_variational(
 
     max_idx = sample_set.energy.index(max(sample_set.energy))
     best = sample_set.samples[max_idx]
-    return DitString(best.values()).to_integer('L')
+    return DitString(best.values()).to_integer('R')
 
 
 def QAOA(
@@ -237,7 +237,42 @@ def AOA(
     sampler_options: dict | None = None,
     verbose: bool = False,
 ) -> int:
-    """
+    """Perform optimization using the Adaptive Optimization Algorithm (AOA) from the Qamomile library.
+     See https://arxiv.org/abs/2211.13227 for more details on the algorithm and its implementation.
+
+    Parameters
+    ----------
+    problem_sketch : ProblemSketch
+        The problem sketch to optimize.
+    number_layers : int, optional
+        The number of layers (p) for the AOA ansatz. Defaults to 4
+    method : str, optional
+        The classical optimization method to use for optimizing the AOA parameters. Defaults to "COBYLA".
+    backend : Any, optional
+        The backend to use for the quantum execution. Defaults to None, which uses the AerSimulator.
+    number_shots : int, optional
+        The number of shots to use for each quantum execution. Defaults to 4096.
+    initial_state : str, optional
+        The type of initial state to use for the AOA ansatz. Defaults to "dicke". Other options include "uniform" and "zero".
+    hamming_weight : int, optional
+        The Hamming weight of the states in the initial state superposition. Only relevant if initial_state is "dicke". Defaults to 1.
+    mixer : str, optional
+        The type of mixer to use for the AOA ansatz. Defaults to "ring". Other options is "fully-connected".
+    pair_indices_mixer : np.ndarray, optional
+        An array of shape (n_pairs, 2) specifying the pairs of qubits to apply the mixer Hamiltonian if mixer is None.
+    block_size : int, optional
+        The block size on which we apply the state prepatation and the XY mixer.
+    optimizer_options : dict, optional
+        Additional options to pass to the classical optimizer. Defaults to None.
+    sampler_options : dict, optional
+        Additional options to pass to the quantum sampler (e.g. max_execution_time for RuntimeSampler backends). Defaults to None.
+    verbose : bool, optional
+        Whether to print additional information during the optimization process. Defaults to False.
+     
+    Returns
+    -------
+    int
+        The index of the dit string that maximizes the sum of the marginals according to the AOA optimization.
     """
     _, _, number_layers, number_shots = _validate_variational_inputs(
         problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options

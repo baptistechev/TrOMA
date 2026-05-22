@@ -63,7 +63,7 @@ class CombinatorialProblem:
         threshold_parameter: float | str | None,
         full_dit_strings: list[DitString] | None = None,
         n_jobs: int = 1,
-        parallel_backend: str = "processes",
+        parallel_backend: str = "threads",
     ) -> Sample:
         """Evaluate the objective, apply threshold, return sorted non-zero Sample.
 
@@ -109,7 +109,7 @@ class CombinatorialProblem:
             values[values < threshold_parameter] = 0
 
         triples = [
-            (int(i), s, int(v))
+            (int(i), s, float(v))
             for i, s, v in zip(indexes, dit_strings, values) if v != 0
         ]
         triples.sort(key=lambda t: t[0])
@@ -154,9 +154,11 @@ class CombinatorialProblem:
             Number of workers used to evaluate the objective. Use ``-1`` to use all CPUs.
             Defaults to 1.
         parallel_backend : {"processes", "threads"}, optional
-            Worker backend used when ``n_jobs > 1``. ``"processes"`` is appropriate for
-            CPU-bound Python objectives; ``"threads"`` can be used for objectives that
-            release the GIL or cannot be pickled.
+            Worker backend used when ``n_jobs > 1``. Defaults to ``"processes"``, which
+            can be faster for pure-Python CPU-bound objectives but requires the objective
+            to be picklable and breaks in Jupyter on Windows. ``"threads"`` works in Jupyter
+            on all platforms and is safe for objectives that create per-call copies of shared
+            state (e.g. pandapower networks).
         """
         n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
         if sampling_function is None:
