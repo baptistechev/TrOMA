@@ -116,15 +116,27 @@ class AerLocalExecutor(QiskitExecutor):
 
         self._call_count += 1
         if self._verbose and (self._call_count <= 5 or self._call_count % 50 == 0):
-            meta = result.results[0].metadata
-            sim_ms = result.results[0].time_taken * 1000
+            exp = result.results[0]
+            meta = exp.metadata
+            sim_ms = (exp.time_taken or 0.0) * 1000
             total_ms = (t1 - t0) * 1000
             print(
                 f"[AerLocalExecutor #{self._call_count}] "
                 f"total={total_ms:.1f}ms  sim={sim_ms:.2f}ms  "
                 f"overhead={total_ms - sim_ms:.1f}ms  "
                 f"device={meta.get('device', '?')}  method={meta.get('method', '?')}  "
-                f"qubits={circuit.num_qubits}  gates={circuit.size()}"
+                f"qubits={circuit.num_qubits}  gates={circuit.size()}  "
+                f"success={result.success}  status={exp.status}"
+            )
+
+        if not result.success:
+            exp = result.results[0]
+            raise RuntimeError(
+                f"Aer simulation failed — status: {exp.status!r}. "
+                f"Circuit: {circuit.num_qubits} qubits, {circuit.size()} gates, "
+                f"device={self._run_backend.options.get('device', '?')}, "
+                f"method={self._run_backend.options.get('method', '?')}. "
+                f"Try device='CPU' if this is a GPU OOM error."
             )
 
         return result.get_counts(0)
