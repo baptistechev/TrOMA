@@ -25,6 +25,7 @@ def matchingpursuit_explicit(
     step: float | None = None,
     optimizer: Any | None = None,
     post_processing: str | None = None,
+    verbose: bool = False,
 ) -> np.ndarray:
     """
     Perform matching pursuit to find a sparse solution to the linear system defined by the sketch matrix and the marginals.
@@ -42,6 +43,9 @@ def matchingpursuit_explicit(
     post_processing : str or None, optional
         Name of a post-processing function to apply to the optimizer solution
         at each iteration.  Supported values: ``"2_bit_swap"``.
+    verbose : bool, optional
+        If True, print per-iteration information about the post-processing
+        outcome. Default is False.
 
     Returns
     -------
@@ -75,12 +79,12 @@ def matchingpursuit_explicit(
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
         residue_sketch = problem_sketch.update_sketch(r)
-        t = optimizer.optimize(residue_sketch)
+        t = optimizer.optimize(residue_sketch, verbose=verbose)
         if post_processing is None:
             pass
         elif post_processing == "2_bit_swap":
             candidate = DitString.from_integer(t, dit_string_length, dit_dimension)
-            t = greedy_2_bit_swap(candidate, problem_sketch).to_integer()
+            t = greedy_2_bit_swap(candidate, problem_sketch, verbose=verbose).to_integer()
         else:
             raise ValueError(
                 f"Unknown post_processing '{post_processing}'. Supported values: '2_bit_swap'."
@@ -105,6 +109,7 @@ def matchingpursuit_abstract(
     step: float | None = None,
     optimizer: Any | None = None,
     post_processing: str | None = None,
+    verbose: bool = False,
 ) -> np.ndarray:
     """
     Perform matching pursuit using an abstract (implicit) sketch representation.
@@ -122,6 +127,9 @@ def matchingpursuit_abstract(
     post_processing : str or None, optional
         Name of a post-processing function to apply to the optimizer solution
         at each iteration.  Supported values: ``"2_bit_swap"``.
+    verbose : bool, optional
+        If True, print per-iteration information about the post-processing
+        outcome. Default is False.
 
     Returns
     -------
@@ -154,12 +162,12 @@ def matchingpursuit_abstract(
         if not residue_sketch.to_hamiltonian().terms:
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
-        t = optimizer.optimize(residue_sketch)
+        t = optimizer.optimize(residue_sketch, verbose=verbose)
         if post_processing is None:
             pass
         elif post_processing == "2_bit_swap":
             candidate = DitString.from_integer(t, dit_string_length, dit_dimension)
-            t = greedy_2_bit_swap(candidate, problem_sketch).to_integer()
+            t = greedy_2_bit_swap(candidate, problem_sketch, verbose=verbose).to_integer()
         else:
             raise ValueError(
                 f"Unknown post_processing '{post_processing}'. Supported values: '2_bit_swap'."

@@ -225,7 +225,8 @@ def QAOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
         hamiltonian = problem_sketch.to_hamiltonian()
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
     return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)
 
@@ -312,6 +313,7 @@ def AOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
         hamiltonian = problem_sketch.to_hamiltonian()
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
     return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)

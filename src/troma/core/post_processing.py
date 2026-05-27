@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 def greedy_2_bit_swap(
     candidate: DitString,
     problem: "CombinatorialProblem | ProblemSketch",
+    verbose: bool = False,
 ) -> DitString:
     """Greedy best-improving 2-bit swap local search for binary dit strings.
 
@@ -36,6 +37,10 @@ def greedy_2_bit_swap(
         maps a 1-D integer ``np.ndarray`` of dit values to a scalar.  Both
         :class:`~troma.CombinatorialProblem` and all
         :class:`~troma.ProblemSketch` subclasses satisfy this interface.
+    verbose : bool, optional
+        If True, print a summary of each pass: the swap applied (or that no
+        improving swap was found) and the resulting objective value.
+        Default is False.
 
     Returns
     -------
@@ -68,9 +73,14 @@ def greedy_2_bit_swap(
     n = len(x)
     fx = float(obj(np.array(x, dtype=int)))
 
+    if verbose:
+        print(f"[2_bit_swap] start  f={fx:.6g}  x={x}")
+
+    pass_idx = 0
     improved = True
     while improved:
         improved = False
+        pass_idx += 1
 
         ones  = [i for i in range(n) if x[i] == 1]
         zeros = [j for j in range(n) if x[j] == 0]
@@ -95,5 +105,9 @@ def greedy_2_bit_swap(
             x[best_i], x[best_j] = 0, 1  # type: ignore[index]
             fx += best_delta
             improved = True
+            if verbose:
+                print(f"[2_bit_swap] pass {pass_idx}  swap ({best_i}←0, {best_j}←1)  Δ={best_delta:.6g}  f={fx:.6g}")
+        elif verbose:
+            print(f"[2_bit_swap] pass {pass_idx}  no improving swap — converged")
 
     return DitString(x, dimension=2)
