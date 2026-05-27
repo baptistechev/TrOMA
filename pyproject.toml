@@ -15,7 +15,8 @@ dependencies = [
   "dwave-neal",
   "qiskit_ibm_runtime",
   "qamomile @ git+https://github.com/baptistechev/Qamomile.git@feature/alternating_ansatz",
-  "qaoa_training_pipeline @ git+https://github.com/qiskit-community/qaoa_training_pipeline"
+  "qaoa_training_pipeline @ git+https://github.com/qiskit-community/qaoa_training_pipeline",
+  "qopt_best_practices @ git+https://github.com/qiskit-community/qopt-best-practices"
 ]
 
 [tool.setuptools.packages.find]
