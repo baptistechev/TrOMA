@@ -10,6 +10,9 @@ class IBMRuntimeExecutor(QiskitExecutor):
     """QiskitExecutor that runs sampling through a pre-built SamplerV2.
 
     Use this for IBM Quantum hardware or IBM Runtime cloud simulators.
+    On real QPU backends (backend.simulator is False), automatically selects
+    the highest-fidelity qubit chain via BackendEvaluator and applies it as
+    the initial layout for transpilation.
     """
 
     def __init__(self, sampler, backend, estimator=None, optimization_level=1):
@@ -25,13 +28,37 @@ class IBMRuntimeExecutor(QiskitExecutor):
         """
         super().__init__(backend=backend, estimator=estimator)
         self._sampler = sampler
-        self._pm = generate_preset_pass_manager(
-            optimization_level=optimization_level, backend=backend
+        self._backend = backend
+        self._optimization_level = optimization_level
+        self._pm = None  # built lazily on first execute() call, once num_qubits is known
+        self._is_real_qpu = not getattr(backend, 'simulator', True)
+
+    def _build_pass_manager(self, circuit):
+        """Build the ISA pass manager, selecting the best qubit chain on real QPU backends."""
+        initial_layout = None
+        if self._is_real_qpu:
+            try:
+                from qopt_best_practices.qubit_selection import BackendEvaluator
+                from qiskit.transpiler import Layout
+                path, fidelity, num_subsets = BackendEvaluator(self._backend).evaluate(circuit.num_qubits)
+                initial_layout = Layout.from_intlist(path, *circuit.qregs)
+                print(
+                    f"[IBMRuntimeExecutor] Best qubit chain selected "
+                    f"(fidelity={fidelity:.4f}, {num_subsets} subsets evaluated): {path}"
+                )
+            except Exception as exc:
+                print(f"[IBMRuntimeExecutor] BackendEvaluator unavailable ({exc}); using default layout.")
+        return generate_preset_pass_manager(
+            optimization_level=self._optimization_level,
+            backend=self._backend,
+            initial_layout=initial_layout,
         )
 
     def execute(self, circuit, shots):
         # Strip any measurements before ISA transpilation; HLS cannot synthesize them.
         circuit = circuit.remove_final_measurements(inplace=False)
+        if self._pm is None:
+            self._pm = self._build_pass_manager(circuit)
         isa_circuit = self._pm.run(circuit)
         isa_circuit = self._ensure_measurements(isa_circuit)
 

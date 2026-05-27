@@ -16,7 +16,6 @@ from qamomile.qiskit import QiskitTranspiler
 from .qamomile_addon import IBMRuntimeExecutor, AerLocalExecutor
 from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
-from ._quantum_map import create_qaoa_circ as _create_qaoa_circ
 from ..core.structure import DitString
 from .._validation import _Validator
 
@@ -157,6 +156,7 @@ def _run_variational(
     number_shots: int,
     method: str,
     optimizer_options: dict | None,
+    x0: np.ndarray | None = None,
 ) -> int:
     def cost_fn(params):
         gammas = list(params[:number_layers])
@@ -174,7 +174,7 @@ def _run_variational(
     bounds = np.array([[-np.pi, np.pi]] * number_parameters, dtype=float)
     res = sk_opt.minimize(
         cost_fn,
-        x0=np.ones(number_parameters),
+        x0=np.ones(number_parameters) if x0 is None else x0,
         bounds=bounds,
         method=method,
         options=dict(optimizer_options or {}),
@@ -203,6 +203,8 @@ def QAOA(
     optimizer_options: dict | None = None,
     sampler_options: dict | None = None,
     verbose: bool = False,
+    pretrain: bool = False,
+    pretrain_options: dict | None = None,
 ) -> int:
     """
     """
@@ -219,7 +221,13 @@ def QAOA(
 
     executable = converter.transpile(QiskitTranspiler(), p=number_layers)
 
-    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)
+    x0 = None
+    if pretrain:
+        from ._quantum_pre_training import pretrain_qaoa_parameters
+        hamiltonian = problem_sketch.to_hamiltonian()
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+
+    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)
 
 
 def AOA(
@@ -236,6 +244,8 @@ def AOA(
     optimizer_options: dict | None = None,
     sampler_options: dict | None = None,
     verbose: bool = False,
+    pretrain: bool = False,
+    pretrain_options: dict | None = None,
 ) -> int:
     """Perform optimization using the Adaptive Optimization Algorithm (AOA) from the Qamomile library.
      See https://arxiv.org/abs/2211.13227 for more details on the algorithm and its implementation.
@@ -298,4 +308,10 @@ def AOA(
         block_size=block_size,
     )
 
-    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options)
+    x0 = None
+    if pretrain:
+        from ._quantum_pre_training import pretrain_qaoa_parameters
+        hamiltonian = problem_sketch.to_hamiltonian()
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+
+    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)
