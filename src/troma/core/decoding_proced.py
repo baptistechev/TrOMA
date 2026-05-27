@@ -11,6 +11,8 @@ from ..sketch_map import ConstraintSketchMap
 from ..sketch_map import ExplicitSketchMap
 from ..optimization import optimizer as optimizer_api
 from .._validation import _Validator
+from .structure import DitString
+from .post_processing import greedy_2_bit_swap
 
 
 def _column_vector_to_array(vec: Any) -> np.ndarray:
@@ -22,6 +24,7 @@ def matchingpursuit_explicit(
     iteration_number: int,
     step: float | None = None,
     optimizer: Any | None = None,
+    post_processing: str | None = None,
 ) -> np.ndarray:
     """
     Perform matching pursuit to find a sparse solution to the linear system defined by the sketch matrix and the marginals.
@@ -36,6 +39,9 @@ def matchingpursuit_explicit(
         The step size. If None, an adaptive step size is used.
     optimizer : Optimizer, optional
         Instantiated optimizer. If None, a brute-force optimizer is used.
+    post_processing : str or None, optional
+        Name of a post-processing function to apply to the optimizer solution
+        at each iteration.  Supported values: ``"2_bit_swap"``.
 
     Returns
     -------
@@ -58,15 +64,27 @@ def matchingpursuit_explicit(
     elif not hasattr(optimizer, "optimize"):
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
 
+    dit_string_length = int(getattr(problem_sketch, "restricted_problem_size", problem_sketch.problem_size))
+    dit_dimension = int(getattr(problem_sketch, "restricted_problem_dimension", problem_sketch.problem_dimension))
+
     r = copy.deepcopy(marginals)
     selections = []
 
     for _ in range(iteration_number):
-        residue_sketch = problem_sketch.update_sketch(r)
-        if not residue_sketch.to_hamiltonian().terms:
+        if np.allclose(r, 0.0):
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
+        residue_sketch = problem_sketch.update_sketch(r)
         t = optimizer.optimize(residue_sketch)
+        if post_processing is None:
+            pass
+        elif post_processing == "2_bit_swap":
+            candidate = DitString.from_integer(t, dit_string_length, dit_dimension)
+            t = greedy_2_bit_swap(candidate, problem_sketch).to_integer()
+        else:
+            raise ValueError(
+                f"Unknown post_processing '{post_processing}'. Supported values: '2_bit_swap'."
+            )
         At = _column_vector_to_array(sketch[:, t])
 
         if step is None:
@@ -86,6 +104,7 @@ def matchingpursuit_abstract(
     iteration_number: int,
     step: float | None = None,
     optimizer: Any | None = None,
+    post_processing: str | None = None,
 ) -> np.ndarray:
     """
     Perform matching pursuit using an abstract (implicit) sketch representation.
@@ -100,6 +119,9 @@ def matchingpursuit_abstract(
         The step size. If None, adaptive.
     optimizer : Optimizer, optional
         Instantiated optimizer. If None, a spin-chain NN optimizer is used.
+    post_processing : str or None, optional
+        Name of a post-processing function to apply to the optimizer solution
+        at each iteration.  Supported values: ``"2_bit_swap"``.
 
     Returns
     -------
@@ -121,6 +143,9 @@ def matchingpursuit_abstract(
     elif not hasattr(optimizer, "optimize"):
         raise TypeError("optimizer must implement an optimize(*args, **kwargs) method.")
 
+    dit_string_length = int(getattr(problem_sketch, "restricted_problem_size", problem_sketch.problem_size))
+    dit_dimension = int(getattr(problem_sketch, "restricted_problem_dimension", problem_sketch.problem_dimension))
+
     r = copy.deepcopy(marginals)
     selections = []
 
@@ -130,6 +155,15 @@ def matchingpursuit_abstract(
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
         t = optimizer.optimize(residue_sketch)
+        if post_processing is None:
+            pass
+        elif post_processing == "2_bit_swap":
+            candidate = DitString.from_integer(t, dit_string_length, dit_dimension)
+            t = greedy_2_bit_swap(candidate, problem_sketch).to_integer()
+        else:
+            raise ValueError(
+                f"Unknown post_processing '{post_processing}'. Supported values: '2_bit_swap'."
+            )
 
         At = sketch_map.reconstruct_structured_matrix_column(t)
 
