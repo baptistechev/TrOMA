@@ -178,26 +178,6 @@ result = matching_pursuit(
 print(result.positions)
 ```
 
-### Estimating QPU cost before running
-
-```python
-from qiskit_ibm_runtime import QiskitRuntimeService
-from troma import bind_optimizer
-from troma.optimization.quantum_cost import estimate_matching_pursuit_qpu_cost
-
-service = QiskitRuntimeService()
-backend = service.backend("ibm_marrakesh")
-
-opti = bind_optimizer("qaoa", backend=backend, number_shots=4096, number_layers=4)
-
-estimate_matching_pursuit_qpu_cost(
-    problem_sketch,
-    optimizer=opti,
-    matching_pursuit_iterations=1,
-)
-# Prints estimated circuits, duration per circuit, and total quantum time.
-```
-
 ## Quantum optimizer: AOA
 
 AOA (Adaptive Optimization Algorithm, [arXiv:2211.13227](https://arxiv.org/abs/2211.13227)) uses a Hamming-weight-preserving mixer, making it well suited for problems where the number of active bits is constrained.
