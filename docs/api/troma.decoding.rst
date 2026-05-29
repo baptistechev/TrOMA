@@ -19,11 +19,5 @@ troma.matching\_pursuit module
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-Module contents
----------------
-
-.. automodule:: troma
-   :members:
-   :undoc-members:
-   :show-inheritance:
