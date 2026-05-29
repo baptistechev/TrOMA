@@ -406,6 +406,18 @@ class CylinderSet:
 
 @dataclass
 class Sample:
+    """A collection of sampled configurations and their objective values.
+
+    Attributes
+    ----------
+    indexes : list[int]
+        Integer index of each sampled configuration in the search space.
+    values : list[float]
+        Objective value for each sampled configuration.
+    dit_strings : list[DitString]
+        Dit-string encoding of each sampled configuration.
+    """
+
     indexes: list[int] = field(default_factory=list)
     values: list[float] = field(default_factory=list)
     dit_strings: list[DitString] = field(default_factory=list)
@@ -520,6 +532,18 @@ class Hamiltonian:
         )
     
     def to_ising_model(self):
+        """Convert this Hamiltonian to a Qamomile :class:`BinaryModel` in Ising (spin) variables.
+
+        Returns
+        -------
+        BinaryModel
+            An Ising-variable binary model suitable for quantum optimizers.
+
+        Raises
+        ------
+        ValueError
+            If all coefficients are zero (nothing to optimize).
+        """
         if not self.terms:
             raise ValueError(
                 "Cannot convert Hamiltonian to Ising model: all terms are zero or absent. "
@@ -538,12 +562,38 @@ class Hamiltonian:
         return BinaryModel(expr)
     
     def to_hubo(self):
+        """Convert this Hamiltonian to a HUBO (binary-variable) :class:`BinaryModel`.
+
+        Returns
+        -------
+        BinaryModel
+            A binary-variable model obtained by changing variable type from spin to binary.
+        """
         ising_model = self.to_ising_model()
         return ising_model.change_vartype(VarType.BINARY)
 
 
 @dataclass
 class Restriction:
+    """Specification of a subspace restriction for a combinatorial problem.
+
+    A restriction narrows the search space by fixing certain dit coordinates to
+    a constant value and optionally limiting the allowed values at each free
+    position. Use :meth:`CombinatorialProblem.restrict` to apply it.
+
+    Attributes
+    ----------
+    dit_restrictions : list[int] or None
+        Indices of the *free* dit positions to keep in the restricted problem.
+        All other positions are fixed to ``additional_dits_val``.
+        ``None`` means all positions are free.
+    dit_value_restrictions : list[int] or None
+        Allowed dit values at the free positions, reducing the alphabet size.
+        ``None`` keeps the original dimension.
+    additional_dits_val : int
+        Value assigned to fixed (non-free) dit positions. Default is ``0``.
+    """
+
     dit_restrictions: list[int] | None = None
     dit_value_restrictions: list[int] | None = None
     additional_dits_val: int = 0

@@ -25,6 +25,25 @@ class ProblemSketch(ABC):
         return self.to_hamiltonian().to_hubo()
 
 class CombinatorialProblemSketch(ProblemSketch):
+    """Sketch of a :class:`~troma.combinatorial_problem.CombinatorialProblem`.
+
+    Produced by :meth:`~troma.combinatorial_problem.CombinatorialProblem.sketching`.
+    Holds all information required to run :func:`~troma.matching_pursuit`.
+
+    Attributes
+    ----------
+    problem_size : int
+        Number of dit positions in the full search space.
+    problem_dimension : int
+        Alphabet size per dit position.
+    sample : Sample
+        Evaluated configurations used to build the sketch.
+    sketch_map : SketchMap
+        The sketch map (constraints) used to compute marginals.
+    sketch_values : list[float]
+        Computed marginals — one value per constraint row.
+    """
+
     def __init__(
         self,
         problem: CombinatorialProblem,
@@ -64,6 +83,31 @@ class CombinatorialProblemSketch(ProblemSketch):
         return new_instance
 
 class RestrictedProblemSketch(ProblemSketch):
+    """Sketch of a :class:`~troma.combinatorial_problem.RestrictedProblem`.
+
+    Produced by :meth:`~troma.combinatorial_problem.RestrictedProblem.sketching`.
+    Matching pursuit results are automatically mapped back to the full search space.
+
+    Attributes
+    ----------
+    problem_size : int
+        Number of dit positions in the *full* (unrestricted) search space.
+    problem_dimension : int
+        Alphabet size per dit position.
+    restriction : Restriction
+        The restriction applied to the problem.
+    restricted_problem_size : int
+        Number of free dit positions after restriction.
+    restricted_problem_dimension : int
+        Alphabet size for free positions after restriction.
+    sample : Sample
+        Evaluated configurations (in restricted coordinates).
+    sketch_map : SketchMap
+        Sketch map built over the restricted space.
+    sketch_values : list[float]
+        Computed marginals over the restricted space.
+    """
+
     def __init__(
         self,
         problem: RestrictedProblem,

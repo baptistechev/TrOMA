@@ -26,6 +26,32 @@ class SketchType(enum.StrEnum):
 
 
 class CombinatorialProblem:
+    """A black-box combinatorial optimization problem defined over a dit-string search space.
+
+    This is the main entry point for the MCCO workflow. The typical usage is:
+
+    1. Instantiate with an objective function and a problem size.
+    2. Call :meth:`sampling` to evaluate the objective on a random subset.
+    3. Call :meth:`sketching` to build a :class:`~troma.problem_sketch.CombinatorialProblemSketch`.
+    4. Pass the sketch to :func:`~troma.matching_pursuit` to recover the best configurations.
+
+    Parameters
+    ----------
+    objective_function : Callable
+        Function that maps a dit-string (as a ``numpy.ndarray``) to a scalar reward.
+    problem_size : int
+        Number of dits in each configuration (length of the dit string).
+    problem_dimension : int, optional
+        Alphabet size per dit position. Default is ``2`` (binary).
+
+    Attributes
+    ----------
+    objective_function : Callable
+    problem_size : int
+    problem_dimension : int
+    sample : Sample
+        Populated by :meth:`sampling`; holds the last set of evaluated configurations.
+    """
 
     def __init__(
         self,
@@ -39,6 +65,17 @@ class CombinatorialProblem:
         self.sample: Sample = Sample()
 
     def restrict(self, restriction: Restriction) -> RestrictedProblem:
+        """Return a :class:`RestrictedProblem` that narrows the search space.
+
+        Parameters
+        ----------
+        restriction : Restriction
+            Specification of which dit positions are free and which are fixed.
+
+        Returns
+        -------
+        RestrictedProblem
+        """
         return RestrictedProblem(self, restriction=restriction)
 
     @staticmethod
@@ -254,7 +291,32 @@ class CombinatorialProblem:
         n_jobs: int = 1,
         parallel_backend: str = "processes",
     ) -> Any:
-        """Sample and then sketch in one call."""
+        """Sample the problem and sketch it in a single call.
+
+        Convenience wrapper that calls :meth:`sampling` followed by
+        :meth:`sketching`. See those methods for full parameter documentation.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of configurations to sample.
+        constraints : SketchMap
+            The sketch map to use for sketching.
+        sampling_function : Callable or None, optional
+            Custom sampler; see :meth:`sampling`.
+        sampling_args : dict or None, optional
+            Extra keyword arguments for ``sampling_function``.
+        threshold_parameter : float, "Auto", or None, optional
+            Threshold applied to objective values; see :meth:`sampling`.
+        n_jobs : int, optional
+            Number of parallel workers for objective evaluation. Default is ``1``.
+        parallel_backend : {"processes", "threads"}, optional
+            Worker backend when ``n_jobs > 1``. Default is ``"processes"``.
+
+        Returns
+        -------
+        CombinatorialProblemSketch
+        """
         self.sampling(
             n_samples,
             sampling_function=sampling_function,
