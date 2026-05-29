@@ -63,7 +63,7 @@ def matchingpursuit_explicit(
 
     for _ in range(iteration_number):
         residue_sketch = problem_sketch.update_sketch(r)
-        if not residue_sketch.to_hamiltonian().terms:
+        if not any(residue_sketch.sketch_values):
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
         t = optimizer.optimize(residue_sketch)
@@ -126,7 +126,7 @@ def matchingpursuit_abstract(
 
     for _ in range(iteration_number):
         residue_sketch = problem_sketch.update_sketch(r)
-        if not residue_sketch.to_hamiltonian().terms:
+        if not any(residue_sketch.sketch_values):
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
         t = optimizer.optimize(residue_sketch)
