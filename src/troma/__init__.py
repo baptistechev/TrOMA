@@ -17,7 +17,7 @@ from .sketch_map import ConstraintSketchMap, ExplicitSketchMap
 from .problem_sketch import ProblemSketch, CombinatorialProblemSketch, RestrictedProblemSketch
 
 # Import combinatorial problem (depends on sketch_map)
-from .combinatorial_problem import CombinatorialProblem
+from .combinatorial_problem import CombinatorialProblem, RestrictedProblem
 
 # Import optimization
 from .optimization.optimizer import (
@@ -51,6 +51,7 @@ __all__ = [
 	"spectrum_restriction",
 	"reverse_spectrum_restriction",
 	"CombinatorialProblem",
+	"RestrictedProblem",
 	"Restriction",
 	"Sample",
 	"Hamiltonian",
