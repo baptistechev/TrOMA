@@ -1,23 +1,14 @@
 # TrOMA
 
-TrOMA is a Python library for optimization of black-box functions with binary inputs
+TrOMA is a Python library for optimization of black-box functions with binary inputs.
 
 B. Chevalier, S. Yamaguchi, W. Roga, M. Takeoka, A Compressive Sensing Inspired Monte-Carlo Method for Combinatorial Optimization, arXiv:2510.24755 (2025).
 
-The method is based on building a surrogate model from sketches through the process we call MCCO modeling. The MCCO cost function that is built can be converted into an Ising Hamiltonian to optimize the function with a quantum process.
+The method builds a surrogate model from sketches through a process called MCCO modeling. The resulting cost function can be converted into an Ising Hamiltonian and optimized with a quantum processor.
 
 Alternatively, the library can be used to efficiently deal with large size compressive sensing problems and benefit from quantum computers as explained in:
 
-B.Chevalier, W. Roga, M.takeoka, Compressed sensing enhanced by a quantum approximate optimization algorithm, Phys. Rev. A 110, 062410 (2024).
-
-The API is centered around:
-
-- explicit or constraint-based sketch construction,
-- `matching_pursuit` for sparse reconstruction,
-- classical and quantum optimizers (including QAOA with a Qiskit backend),
-- a complete MCCO workflow through `solve_via_mcco` and `embedding_and_solve_via_mcco`.
-
-The main entry point is the `troma` module.
+B. Chevalier, W. Roga, M. Takeoka, Compressed sensing enhanced by a quantum approximate optimization algorithm, Phys. Rev. A 110, 062410 (2024).
 
 See the doc at https://baptistechev.github.io/TrOMA/
 
@@ -27,8 +18,6 @@ See the doc at https://baptistechev.github.io/TrOMA/
 pip install troma
 ```
 
-Then in Python:
-
 ```python
 import troma
 print(troma.__version__)
@@ -36,77 +25,72 @@ print(troma.__version__)
 
 ## Main API
 
-The most useful objects are exposed directly at package level:
-
 ```python
-import troma
 from troma import (
-    ConstraintSketch,
-    ExplicitSketch,
+    CombinatorialProblem,
+    ConstraintSketchMap,
+    matching_pursuit,
     get_optimizer,
     bind_optimizer,
-    matching_pursuit,
-    mcco_modeling,
-    solve_via_mcco,
-    embedding_and_solve_via_mcco,
+    DitString,
+    Restriction,
     spectrum_embedding,
-    spectrum_restriction,
-    reverse_spectrum_restriction,
 )
-from troma import data_structure as ds
 ```
 
-## Quick example: Compressive Sensing abstract reconstruction
+## Core workflow
+
+The MCCO pipeline has five steps: define the problem, sample it, build a sketch map, sketch, and run matching pursuit.
 
 ```python
-import numpy as np
+from troma import CombinatorialProblem, ConstraintSketchMap, matching_pursuit, get_optimizer
 
-from troma import ConstraintSketch, matching_pursuit
-from troma import data_structure as ds
+# 1. Define the problem
+def objective(dit_string):
+    ...  # returns a scalar reward
 
-number_spins = 7
-interaction_size = 4
+problem = CombinatorialProblem(objective, problem_size=12, problem_dimension=2)
 
-spectrum_bin = [
-    [0, 0, 0, 0, 0, 1, 0],
-    [0, 1, 1, 1, 0, 1, 0],
-    [0, 0, 1, 1, 1, 1, 0],
-    [1, 1, 1, 1, 0, 0, 1],
-]
-spectrum_val = [-0.5, 1.8, -0.3, 1.5]
+# 2. Sample the search space
+problem.sampling(n_samples=800, seed=3)
 
-constraints = ConstraintSketch.build_nearest_neighbors_sketch(
-    number_spins,
-    interaction_size,
-    2,
-)
-y = ConstraintSketch.compute_marginal((spectrum_bin, spectrum_val), constraints)
-
-solution = matching_pursuit(
-    "abstract",
-    y,
-    constraints,
-    number_spins,
-    iteration_number=2,
-    interaction_size=interaction_size,
+# 3. Build a sketch map
+sketch_map = ConstraintSketchMap(
+    sketch_length=12,
+    interaction_size=2,
+    constraints="nearest_neighbors",
 )
 
-print(solution)
+# 4. Sketch the problem
+problem_sketch = problem.sketching(sketch_map)
+
+# 5. Run matching pursuit
+result = matching_pursuit(
+    problem_sketch,
+    iteration_number=5,
+    optimizer=get_optimizer("spin_chain_nn_max"),
+)
+
+print(result.positions)   # integer indices of the best configurations found
+print(result.values)      # corresponding objective values
+print(result.dit_strings) # corresponding DitString objects
 ```
 
-## Choosing an optimizer for matching pursuit
+The shorthand `"nearest_neighbors"` string can be passed directly to `sketching` instead of constructing a `ConstraintSketchMap` manually:
 
-The recommended path is to use the common interface:
+```python
+problem_sketch = problem.sketching("nearest_neighbors", interaction_size=2)
+```
+
+## Optimizers
+
+Pass an optimizer via the `optimizer` keyword of `matching_pursuit`.
 
 ```python
 from troma import get_optimizer, bind_optimizer
 
 opti = get_optimizer("dual_annealing")
-# or, for QAOA with default local simulator:
-opti = bind_optimizer("qaoa", number_shots=4096)
 ```
-
-Available optimizers:
 
 | Name | Type | Notes |
 |---|---|---|
@@ -115,111 +99,190 @@ Available optimizers:
 | `dual_annealing` | Classical | SciPy dual annealing |
 | `simulated_annealing` | Classical | Neal simulated annealing |
 | `digital_annealing` | Quantum-inspired | D-Wave Neal QUBO solver |
-| `qaoa` | Quantum | QAOA via Qiskit (see below) |
+| `qaoa` | Quantum | QAOA via Qiskit |
+| `aoa` | Quantum | AOA (Adaptive Optimization Algorithm) via Qiskit — Hamming-weight-preserving mixer |
 
-## Quantum optimizer: QAOA with Qiskit
+## Quantum optimizer: QAOA
 
-The `qaoa` optimizer uses [Qiskit](https://qiskit.org/) and supports both local simulation and real IBM quantum hardware.
-
-### Local simulation (default)
-
-By default, QAOA runs on `qiskit_aer.AerSimulator`:
-
-```python
-from troma import bind_optimizer, matching_pursuit, ConstraintSketch
-
-opti = bind_optimizer(
-    "qaoa",
-    number_shots=4096,
-    number_layers=4,
-    method="COBYLA",
-    optimizer_options={"maxiter": 100},
-)
-
-solution = matching_pursuit(
-    "abstract", y, constraints, number_spins,
-    iteration_number=2,
-    interaction_size=interaction_size,
-    optimizer=opti,
-)
-```
-
-### Custom Qiskit sampler (simulation or hardware)
-
-Pass any `SamplerV2`-compatible sampler via the `sampler` keyword. This lets you target different Aer backends or real IBM hardware:
+### Local simulation
 
 ```python
 from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import SamplerV2
-from troma import bind_optimizer
+from troma import bind_optimizer, matching_pursuit
 
 backend = AerSimulator()
-sampler = SamplerV2(mode=backend)
+opti = bind_optimizer("qaoa", backend=backend, number_shots=4096)
 
-opti = bind_optimizer("qaoa", sampler=sampler, number_shots=4096, number_layers=4)
+result = matching_pursuit(problem_sketch, iteration_number=2, optimizer=opti)
+print(result.positions)
 ```
 
 ### Running on IBM quantum hardware
 
-Connect to the IBM Quantum platform via `QiskitRuntimeService` and pass the backend sampler directly:
-
 ```python
-from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2
+from qiskit_ibm_runtime import QiskitRuntimeService
 from troma import bind_optimizer, matching_pursuit
 
 service = QiskitRuntimeService()
 backend = service.backend("ibm_marrakesh")
-sampler = SamplerV2(mode=backend)
 
 opti = bind_optimizer(
     "qaoa",
-    sampler=sampler,
+    backend=backend,
     number_shots=4096,
     number_layers=4,
     method="COBYLA",
-    optimizer_options={"maxiter": 10, "maxfev": 15},
+    optimizer_options={"maxiter": 10},
+    sampler_options={"max_execution_time": 6},
 )
 
-solution = matching_pursuit(
-    "abstract", y, constraints, number_spins,
-    iteration_number=1,
-    interaction_size=interaction_size,
-    optimizer=opti,
-)
+result = matching_pursuit(problem_sketch, iteration_number=1, optimizer=opti)
+print(result.positions)
 ```
 
-## MCCO workflow　-- Black-box optimization
+### Pre-training before running on hardware
 
-To run the full pipeline in a single function:
+`pretrain=True` runs a grid scan + local refinement on a local `AerSimulator` first, then
+transfers the warm-started parameters to the real device, reducing the number of QPU iterations needed.
 
 ```python
-from troma import solve_via_mcco, get_optimizer
+from qiskit_ibm_runtime import QiskitRuntimeService
+from troma import bind_optimizer, matching_pursuit
 
-def objective_function(dit_string):
-    return int(sum(dit_string))
+service = QiskitRuntimeService()
+backend = service.backend("ibm_marrakesh")
 
-result = solve_via_mcco(
-    objective_function=objective_function,
-    number_samples=500,
-    dit_string_length=8,
-    interaction_size=4,
-    iteration_number=5,
-    threshold_parameter="Auto",
-    optimizer=get_optimizer("spin_chain_nn_max"),
+opti = bind_optimizer(
+    "qaoa",
+    backend=backend,
+    number_layers=4,
+    number_shots=1024,
+    method="COBYLA",
+    optimizer_options={"maxiter": 10},
+    pretrain=True,
+    pretrain_options={
+        "num_grid_points": 20,       # 20² = 400 grid points for p=1 scan
+        "number_shots": 1024,
+        "sim_method": "statevector",
+        "max_sim_iter": 60,
+    },
 )
 
-print(result["solution_pos"], result["solution_val"])
+result = matching_pursuit(
+    problem_sketch,
+    iteration_number=1,
+    optimizer=opti,
+    post_processing="2_bit_swap",
+    verbose=True,
+)
+print(result.positions)
 ```
 
-The output dictionary contains:
+### Estimating QPU cost before running
 
-- `spectrum_pos` — sampled configuration indices
-- `spectrum_val` — corresponding objective values
-- `spectrum_dits` — dit string representations
-- `constraints` — constraint sketch used
-- `y` — computed marginals
-- `solution_pos` — reconstructed solution indices
-- `solution_val` — reconstructed solution values
+```python
+from qiskit_ibm_runtime import QiskitRuntimeService
+from troma import bind_optimizer
+from troma.optimization.quantum_cost import estimate_matching_pursuit_qpu_cost
+
+service = QiskitRuntimeService()
+backend = service.backend("ibm_marrakesh")
+
+opti = bind_optimizer("qaoa", backend=backend, number_shots=4096, number_layers=4)
+
+estimate_matching_pursuit_qpu_cost(
+    problem_sketch,
+    optimizer=opti,
+    matching_pursuit_iterations=1,
+)
+# Prints estimated circuits, duration per circuit, and total quantum time.
+```
+
+## Quantum optimizer: AOA
+
+AOA (Adaptive Optimization Algorithm, [arXiv:2211.13227](https://arxiv.org/abs/2211.13227)) uses a Hamming-weight-preserving mixer, making it well suited for problems where the number of active bits is constrained.
+
+```python
+from qiskit_ibm_runtime import QiskitRuntimeService
+from troma import bind_optimizer, matching_pursuit
+
+service = QiskitRuntimeService()
+backend = service.backend("ibm_marrakesh")
+
+opti = bind_optimizer(
+    "aoa",
+    backend=backend,
+    number_layers=4,
+    number_shots=4096,
+    method="COBYLA",
+    initial_state="dicke",
+    hamming_weight=1,
+    mixer="ring",
+    optimizer_options={"maxiter": 10},
+)
+
+result = matching_pursuit(problem_sketch, iteration_number=1, optimizer=opti)
+print(result.positions)
+```
+
+## Restricted search space
+
+When some coordinates are known or trivially fixed, restrict the problem before sampling. The restriction maps solutions back to the full space automatically.
+
+```python
+import numpy as np
+from troma import CombinatorialProblem, Restriction, matching_pursuit, get_optimizer
+
+# Define the problem over the full space
+problem = CombinatorialProblem(ev_conf, problem_size=13)
+
+# Fix the first bit to 1, optimize over bits 1–12
+restriction = Restriction(
+    dit_restrictions=np.arange(1, 13),   # indices of free coordinates
+    dit_value_restrictions=None,
+    additional_dits_val=1,               # value imposed on fixed coordinates
+)
+restricted_problem = problem.restrict(restriction)
+
+# Sample and sketch in the restricted space
+restricted_problem.sampling(n_samples=400)
+problem_sketch = restricted_problem.sketching("nearest_neighbors", interaction_size=4)
+
+# Result positions are mapped back to the full space
+result = matching_pursuit(problem_sketch, iteration_number=5, optimizer=get_optimizer("spin_chain_nn_max"))
+print(result.positions)
+```
+
+## Spectrum embedding
+
+`spectrum_embedding` embeds a spectrum into a higher-dimensional space by inserting
+additional coordinates with a fixed value.
+
+```python
+from troma import DitString, spectrum_embedding
+
+emb_spectrum = spectrum_embedding(
+    spectrum_bin,
+    additional_dits=[0],        # positions of the new coordinates
+    dimension_mapping=None,
+    additional_dits_val=1,      # value to assign to the added coordinates
+)
+emb_pos = [DitString(s).to_integer() for s in emb_spectrum]
+```
+
+## DitString
+
+`DitString` is the standard representation for configurations. It bundles the
+sequence of dit values with the alphabet size (dimension).
+
+```python
+from troma import DitString
+
+s = DitString([0, 1, 1, 0], dimension=2)
+i = s.to_integer()                                         # convert to integer index
+s2 = DitString.from_integer(i, length=4, dimension=2)     # reconstruct from index
+arr = s.tolist()                                           # plain Python list
+```
 
 ## Demo notebooks
 
@@ -229,8 +292,5 @@ The output dictionary contains:
 
 ## Notes
 
-- The root `troma` API exposes the most common workflows.
-- Submodules (`troma.optimization`, `troma.decoding`, `troma.sketchs`) remain available for more advanced use cases.
-- Internal helpers should not necessarily be considered a stable public API.
-
-
+- Submodules (`troma.optimization`, `troma.decoding`, `troma.sketchs`) remain available for advanced use.
+- Internal helpers should not be considered a stable public API.

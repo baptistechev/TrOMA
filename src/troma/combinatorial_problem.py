@@ -1,0 +1,477 @@
+from __future__ import annotations
+
+import concurrent.futures
+import enum
+import os
+from collections.abc import Callable
+from functools import singledispatchmethod
+from itertools import repeat
+from typing import Any
+
+import numpy as np
+
+from .sketch_map import ConstraintSketchMap, SketchMap
+from .core.structure import DitString, Sample, Restriction
+from .core.embedding import reverse_spectrum_restriction
+from ._validation import _Validator
+
+
+def _evaluate_objective(objective_function: Callable, dit_string: DitString) -> float:
+    return float(objective_function(np.asarray(dit_string)))
+
+
+class SketchType(enum.StrEnum):
+    NEAREST_NEIGHBORS = "nearest_neighbors"
+    ALL_INTERACTIONS = "all_interactions"
+
+
+class CombinatorialProblem:
+    """A black-box combinatorial optimization problem defined over a dit-string search space.
+
+    This is the main entry point for the MCCO workflow. The typical usage is:
+
+    1. Instantiate with an objective function and a problem size.
+    2. Call :meth:`sampling` to evaluate the objective on a random subset.
+    3. Call :meth:`sketching` to build a :class:`~troma.problem_sketch.CombinatorialProblemSketch`.
+    4. Pass the sketch to :func:`~troma.matching_pursuit` to recover the best configurations.
+
+    Parameters
+    ----------
+    objective_function : Callable
+        Function that maps a dit-string (as a ``numpy.ndarray``) to a scalar reward.
+    problem_size : int
+        Number of dits in each configuration (length of the dit string).
+    problem_dimension : int, optional
+        Alphabet size per dit position. Default is ``2`` (binary).
+
+    Attributes
+    ----------
+    objective_function : Callable
+    problem_size : int
+    problem_dimension : int
+    sample : Sample
+        Populated by :meth:`sampling`; holds the last set of evaluated configurations.
+    """
+
+    def __init__(
+        self,
+        objective_function: Callable,
+        problem_size: int,
+        problem_dimension: int = 2,
+    ) -> None:
+        self.objective_function: Callable = objective_function
+        self.problem_size: int = problem_size
+        self.problem_dimension: int = problem_dimension
+        self.sample: Sample = Sample()
+
+    def restrict(self, restriction: Restriction) -> RestrictedProblem:
+        """Return a :class:`RestrictedProblem` that narrows the search space.
+
+        Parameters
+        ----------
+        restriction : Restriction
+            Specification of which dit positions are free and which are fixed.
+
+        Returns
+        -------
+        RestrictedProblem
+        """
+        return RestrictedProblem(self, restriction=restriction)
+
+    @staticmethod
+    def _uniform_sampling(
+        n_samples: int,
+        length: int,
+        dimension: int,
+        seed: int | np.random.Generator | None = None,
+    ) -> tuple[np.ndarray, list[DitString]]:
+        """Uniform random sampler over the dit-string space."""
+        total_states = dimension ** length
+        rng = np.random.default_rng(seed)
+        indexes = rng.integers(0, total_states, size=n_samples, dtype=np.int64)
+        dit_strings = [DitString.from_integer(int(i), length, dimension) for i in indexes]
+        return indexes, dit_strings
+
+    @staticmethod
+    def _evaluate_and_filter(
+        indexes: np.ndarray,
+        dit_strings: list[DitString],
+        objective_function: Callable,
+        threshold_parameter: float | str | None,
+        full_dit_strings: list[DitString] | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "threads",
+    ) -> Sample:
+        """Evaluate the objective, apply threshold, return sorted non-zero Sample.
+
+        Parameters
+        ----------
+        full_dit_strings : list[DitString] or None, optional
+            When provided, the objective is evaluated on these (full-space) dit strings
+            while ``dit_strings`` (restricted-space) are stored in the returned Sample.
+            Used by RestrictedProblem so the objective always receives full-space inputs.
+        """
+        eval_strings = full_dit_strings if full_dit_strings is not None else dit_strings
+        parallel_backend = _Validator.ensure_str("parallel_backend", parallel_backend)
+        _Validator.ensure_one_of("parallel_backend", parallel_backend, {"processes", "threads"})
+
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        else:
+            n_jobs = _Validator.ensure_int("n_jobs", n_jobs, min_value=1)
+
+        if n_jobs == 1 or len(eval_strings) <= 1:
+            values = np.array([objective_function(np.asarray(s)) for s in eval_strings], dtype=float)
+        else:
+            executor_cls = (
+                concurrent.futures.ProcessPoolExecutor
+                if parallel_backend == "processes"
+                else concurrent.futures.ThreadPoolExecutor
+            )
+            with executor_cls(max_workers=n_jobs) as executor:
+                values = np.fromiter(
+                    executor.map(
+                        _evaluate_objective,
+                        repeat(objective_function),
+                        eval_strings,
+                    ),
+                    dtype=float,
+                    count=len(eval_strings),
+                )
+
+        if threshold_parameter == "Auto":
+            non_zero = values[values != 0]
+            threshold_parameter = np.percentile(non_zero, 90) if non_zero.size > 0 else 0
+        if threshold_parameter is not None:
+            values[values < threshold_parameter] = 0
+
+        triples = [
+            (int(i), s, float(v))
+            for i, s, v in zip(indexes, dit_strings, values) if v != 0
+        ]
+        triples.sort(key=lambda t: t[0])
+        if triples:
+            out_indexes, out_strings, out_values = zip(*triples)
+        else:
+            out_indexes, out_strings, out_values = [], [], []
+        return Sample(
+            indexes=list(out_indexes),
+            values=list(out_values),
+            dit_strings=list(out_strings),
+        )
+
+    def sampling(
+        self,
+        n_samples: int,
+        sampling_function: Callable | None = None,
+        sampling_args: dict | None = None,
+        threshold_parameter: float | str | None = None,
+        seed: int | np.random.Generator | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
+    ) -> Sample:
+        """Sample the problem by evaluating the objective on a random subset of the search space.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of configurations to sample.
+        sampling_function : Callable or None, optional
+            Custom sampler. Must accept ``(n_samples, length, dimension)`` and return
+            ``(indexes, dit_strings)``. Defaults to uniform random sampling.
+        sampling_args : dict or None, optional
+            Extra keyword arguments forwarded to ``sampling_function``.
+        threshold_parameter : float, "Auto", or None, optional
+            Samples whose objective value is below the threshold are discarded.
+            ``"Auto"`` sets the threshold to the 90th percentile of non-zero values.
+        seed : int, np.random.Generator, or None, optional
+            Seed or Generator for reproducibility in the sampling function.
+            Defaults to None (random).
+        n_jobs : int, optional
+            Number of workers used to evaluate the objective. Use ``-1`` to use all CPUs.
+            Defaults to 1.
+        parallel_backend : {"processes", "threads"}, optional
+            Worker backend used when ``n_jobs > 1``. Defaults to ``"processes"``, which
+            can be faster for pure-Python CPU-bound objectives but requires the objective
+            to be picklable and breaks in Jupyter on Windows. ``"threads"`` works in Jupyter
+            on all platforms and is safe for objectives that create per-call copies of shared
+            state (e.g. pandapower networks).
+        """
+        n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
+        if sampling_function is None:
+            sampling_function = self._uniform_sampling
+        else:
+            _Validator.ensure_callable("sampling_function", sampling_function)
+        _Validator.ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter != "Auto":
+            _Validator.ensure_optional_real("threshold_parameter", threshold_parameter)
+
+        indexes, dit_strings = sampling_function(
+            n_samples, self.problem_size, self.problem_dimension,
+            seed=seed,
+            **(sampling_args or {}),
+        )
+        self.sample = self._evaluate_and_filter(
+            indexes,
+            dit_strings,
+            self.objective_function,
+            threshold_parameter,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
+        )
+        return self.sample
+
+    @singledispatchmethod
+    def sketching(self, constraints: Any, interaction_size: int | None = None) -> Any:
+        raise TypeError(
+            "constraints must be a SketchMap instance or a SketchType string."
+        )
+
+    @sketching.register
+    def _(self, constraints: SketchMap, interaction_size: int | None = None) -> Any:
+        """Sketch from a given SketchMap.
+
+        Parameters
+        ----------
+        constraints : SketchMap
+            The SketchMap containing the constraints for the combinatorial problem.
+        interaction_size : int | None, optional
+            Unused when constraints is a SketchMap. Provided for API consistency.
+
+        Returns
+        -------
+        CombinatorialProblemSketch
+        """
+        if constraints.sketch_length != self.problem_size:
+            raise ValueError(
+                f"Sketch length {constraints.sketch_length} does not match problem size {self.problem_size}."
+            )
+
+        from .problem_sketch import CombinatorialProblemSketch
+
+        sketch_values = constraints.compute_marginal(self.sample.dit_strings, self.sample.values)
+        return CombinatorialProblemSketch(problem=self, sketch_map=constraints, sketch_values=sketch_values)
+
+    @sketching.register(str)
+    def _(self, constraints: SketchType, interaction_size: int | None = None) -> Any:
+        """Sketch from a SketchType string shorthand.
+
+        Parameters
+        ----------
+        constraints : SketchType or str
+            ``"nearest_neighbors"`` or ``"all_interactions"``.
+        interaction_size : int, required
+            Size of interactions.
+
+        Returns
+        -------
+        CombinatorialProblemSketch
+        """
+        if interaction_size is None:
+            raise TypeError(
+                "interaction_size is required when constraints is a SketchType. "
+                "Please specify the interaction size explicitly."
+            )
+        constraints = SketchType(constraints)
+        sketch_map = ConstraintSketchMap(
+            sketch_length=self.problem_size,
+            interaction_size=interaction_size,
+            sketch_dimension=self.problem_dimension,
+            constraints=constraints,
+        )
+        return self.sketching(sketch_map)
+
+    def mcco_sketching(
+        self,
+        n_samples: int,
+        constraints: SketchMap,
+        sampling_function: Callable | None = None,
+        sampling_args: dict | None = None,
+        threshold_parameter: float | str | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
+    ) -> Any:
+        """Sample the problem and sketch it in a single call.
+
+        Convenience wrapper that calls :meth:`sampling` followed by
+        :meth:`sketching`. See those methods for full parameter documentation.
+
+        Parameters
+        ----------
+        n_samples : int
+            Number of configurations to sample.
+        constraints : SketchMap
+            The sketch map to use for sketching.
+        sampling_function : Callable or None, optional
+            Custom sampler; see :meth:`sampling`.
+        sampling_args : dict or None, optional
+            Extra keyword arguments for ``sampling_function``.
+        threshold_parameter : float, "Auto", or None, optional
+            Threshold applied to objective values; see :meth:`sampling`.
+        n_jobs : int, optional
+            Number of parallel workers for objective evaluation. Default is ``1``.
+        parallel_backend : {"processes", "threads"}, optional
+            Worker backend when ``n_jobs > 1``. Default is ``"processes"``.
+
+        Returns
+        -------
+        CombinatorialProblemSketch
+        """
+        self.sampling(
+            n_samples,
+            sampling_function=sampling_function,
+            sampling_args=sampling_args,
+            threshold_parameter=threshold_parameter,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
+        )
+        return self.sketching(constraints)
+
+
+class RestrictedProblem(CombinatorialProblem):
+    """Represents a restricted combinatorial problem."""
+
+    def __init__(
+        self,
+        problem: CombinatorialProblem | RestrictedProblem,
+        restriction: Restriction | None = None,
+        dit_restrictions: list[int] | None = None,
+        dit_value_restrictions: list[int] | None = None,
+        additional_dits_val: int = 0,
+    ) -> None:
+        _Validator.ensure_instance("problem", problem, (CombinatorialProblem, RestrictedProblem))
+
+        super().__init__(
+            objective_function=problem.objective_function,
+            problem_size=problem.problem_size,
+            problem_dimension=problem.problem_dimension,
+        )
+
+        # Backward compatibility for legacy positional calls
+        if restriction is not None and not isinstance(restriction, Restriction):
+            dit_restrictions = restriction
+            restriction = None
+
+        if restriction is None:
+            restriction = Restriction(
+                dit_restrictions=dit_restrictions,
+                dit_value_restrictions=dit_value_restrictions,
+                additional_dits_val=additional_dits_val,
+            )
+        self.restriction: Restriction = restriction
+        self.restricted_problem_size: int = (
+            len(self.restriction.dit_restrictions)
+            if self.restriction.dit_restrictions is not None
+            else self.problem_size
+        )
+        self.restricted_problem_dimension: int = (
+            len(self.restriction.dit_value_restrictions)
+            if self.restriction.dit_value_restrictions is not None
+            else self.problem_dimension
+        )
+
+    def sampling(
+        self,
+        n_samples: int,
+        sampling_function: Callable | None = None,
+        sampling_args: dict | None = None,
+        threshold_parameter: float | str | None = None,
+        seed: int | np.random.Generator | None = None,
+        n_jobs: int = 1,
+        parallel_backend: str = "processes",
+    ) -> Sample:
+        """Sample the restricted problem.
+
+        Samples from the restricted search space, maps configurations back to
+        the full space for objective evaluation, and stores the restricted-space
+        dit strings in the sample.
+        """
+        # No active restriction — delegate to the unrestricted sampler.
+        if (
+            self.restriction.dit_restrictions is None
+            and self.restriction.dit_value_restrictions is None
+        ):
+            return super().sampling(
+                n_samples,
+                sampling_function,
+                sampling_args,
+                threshold_parameter,
+                seed,
+                n_jobs,
+                parallel_backend,
+            )
+
+        n_samples = _Validator.ensure_int("n_samples", n_samples, min_value=1)
+        if sampling_function is None:
+            sampling_function = self._uniform_sampling
+        else:
+            _Validator.ensure_callable("sampling_function", sampling_function)
+        _Validator.ensure_optional_dict("sampling_args", sampling_args)
+        if threshold_parameter != "Auto":
+            _Validator.ensure_optional_real("threshold_parameter", threshold_parameter)
+
+        # Sample in the restricted space.
+        indexes_rest, dit_strings_rest = sampling_function(
+            n_samples, self.restricted_problem_size, self.restricted_problem_dimension,
+            seed=seed,
+            **(sampling_args or {}),
+        )
+
+        # Map back to full space to evaluate the objective.
+        dit_strings_full = reverse_spectrum_restriction(
+            dit_strings_rest,
+            original_size=self.problem_size,
+            dit_restrictions=self.restriction.dit_restrictions,
+            dit_value_restrictions=self.restriction.dit_value_restrictions,
+            additional_dits_val=self.restriction.additional_dits_val,
+        )
+
+        # Evaluate, threshold and keep non-zero samples (store restricted dit strings).
+        self.sample = self._evaluate_and_filter(
+            indexes_rest,
+            dit_strings_rest,
+            self.objective_function,
+            threshold_parameter,
+            full_dit_strings=dit_strings_full,
+            n_jobs=n_jobs,
+            parallel_backend=parallel_backend,
+        )
+        return self.sample
+
+    @singledispatchmethod
+    def sketching(self, constraints: Any, interaction_size: int | None = None) -> Any:
+        raise TypeError(
+            "constraints must be a SketchMap instance or a SketchType string."
+        )
+
+    @sketching.register
+    def _(self, constraints: SketchMap, interaction_size: int | None = None) -> Any:
+        if constraints.sketch_length != self.restricted_problem_size:
+            raise ValueError(
+                f"Sketch length {constraints.sketch_length} does not match restricted problem size {self.restricted_problem_size}."
+            )
+
+        from .problem_sketch import RestrictedProblemSketch
+
+        sketch = constraints.compute_marginal(self.sample.dit_strings, self.sample.values)
+        return RestrictedProblemSketch(problem=self, sketch_map=constraints, sketch_values=sketch)
+
+    @sketching.register(str)
+    def _(self, constraints: SketchType, interaction_size: int | None = None) -> Any:
+        if interaction_size is None:
+            raise TypeError(
+                "interaction_size is required when constraints is a SketchType. "
+                "Please specify the interaction size explicitly."
+            )
+        constraints = SketchType(constraints)
+        sketch_map = ConstraintSketchMap(
+            sketch_length=self.restricted_problem_size,
+            interaction_size=interaction_size,
+            sketch_dimension=self.restricted_problem_dimension,
+            constraints=constraints,
+        )
+
+        from .problem_sketch import RestrictedProblemSketch
+
+        sketch_values = sketch_map.compute_marginal(self.sample.dit_strings, self.sample.values)
+        return RestrictedProblemSketch(problem=self, sketch_map=sketch_map, sketch_values=sketch_values)

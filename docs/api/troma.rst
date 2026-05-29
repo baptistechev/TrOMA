@@ -9,34 +9,45 @@ Subpackages
 
    troma.decoding
    troma.optimization
-   troma.sketchs
 
 Submodules
 ----------
 
-troma.data\_structure module
-----------------------------
+troma.combinatorial\_problem module
+------------------------------------
 
-.. automodule:: troma.data_structure
+.. automodule:: troma.combinatorial_problem
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-troma.mcco\_workflow module
----------------------------
+troma.matching\_pursuit module
+-------------------------------
 
-.. automodule:: troma.mcco_workflow
+.. automodule:: troma.matching_pursuit
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
 
-troma.modeling module
----------------------
+troma.problem\_sketch module
+-----------------------------
 
-.. automodule:: troma.modeling
+.. automodule:: troma.problem_sketch
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:
+
+troma.sketch\_map module
+-------------------------
+
+.. automodule:: troma.sketch_map
+   :members:
+   :undoc-members:
+   :show-inheritance:
+   :no-index:
 
 Module contents
 ---------------
@@ -45,3 +56,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :no-index:

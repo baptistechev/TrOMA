@@ -1,13 +1,67 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 import inspect
 from importlib import import_module
 from typing import Any, Callable
-from .._validation import ensure_callable as _ensure_callable
+import numpy as np
+from .core.structure import DitString, MatchingPursuitResults
+from .core.embedding import reverse_spectrum_restriction
+from ._validation import _Validator
+
+# Import for ProblemSketch support
+from .problem_sketch import ProblemSketch, RestrictedProblemSketch
+from .sketch_map import ConstraintSketchMap, ExplicitSketchMap
 
 
 MatchingPursuitFunction = Callable[..., Any]
+
+
+
+def _coerce_solution_array(solution: Any) -> np.ndarray:
+    """Normalize backend solution to shape ``(n, 2)``."""
+    arr = np.asarray(solution)
+    if arr.size == 0:
+        return np.empty((0, 2), dtype=float)
+    if arr.ndim == 1:
+        if arr.shape[0] != 2:
+            raise ValueError("Matching pursuit backend returned a 1D result with invalid shape.")
+        return arr.reshape(1, 2)
+    if arr.ndim != 2 or arr.shape[1] != 2:
+        raise ValueError("Matching pursuit backend must return an array-like of shape (n, 2).")
+    return arr
+
+
+def _build_matching_pursuit_results(
+    solution: Any,
+    *,
+    backend_name: str,
+    marginals: Any,
+    dit_string_length: int,
+    dit_dimension: int,
+    interaction_size: int | None,
+) -> MatchingPursuitResults:
+    """Build a structured ``MatchingPursuitResults`` object from backend output."""
+    raw = _coerce_solution_array(solution)
+    positions = raw[:, 0].astype(int) if raw.size > 0 else np.array([], dtype=int)
+    values = raw[:, 1].astype(float) if raw.size > 0 else np.array([], dtype=float)
+    dit_strings = [
+        DitString.from_integer(int(index), dit_string_length, dit_dimension)
+        for index in positions
+    ]
+
+    return MatchingPursuitResults(
+        positions=positions,
+        values=values,
+        dit_strings=dit_strings,
+        backend_name=backend_name,
+        dit_string_length=int(dit_string_length),
+        dit_dimension=int(dit_dimension),
+        interaction_size=None if interaction_size is None else int(interaction_size),
+        marginals=np.asarray(marginals, dtype=float),
+        raw=raw,
+    )
 
 
 class MatchingPursuit(ABC):
@@ -28,13 +82,10 @@ class FunctionMatchingPursuit(MatchingPursuit):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        if not isinstance(name, str) or not name:
-            raise TypeError("name must be a non-empty string.")
-        _ensure_callable("function", function)
-        if not isinstance(default_args, tuple):
-            raise TypeError("default_args must be a tuple.")
-        if default_kwargs is not None and not isinstance(default_kwargs, dict):
-            raise TypeError("default_kwargs must be a dict or None.")
+        _Validator.ensure_nonempty_str("name", name)
+        _Validator.ensure_callable("function", function)
+        _Validator.ensure_tuple("default_args", default_args)
+        _Validator.ensure_optional_dict("default_kwargs", default_kwargs)
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -97,14 +148,13 @@ class FunctionMatchingPursuit(MatchingPursuit):
 
 
 _MATCHING_PURSUIT_REGISTRY: dict[str, tuple[str, str]] = {
-    "explicit": ("decoding_proced", "matchingpursuit_explicit"),
-    "abstract": ("decoding_proced", "matchingpursuit_abstract"),
+    "explicit": ("core.decoding_proced", "matchingpursuit_explicit"),
+    "abstract": ("core.decoding_proced", "matchingpursuit_abstract"),
 }
 
 
 def _load_module(module_name: str):
-    if not isinstance(module_name, str) or not module_name:
-        raise TypeError("module_name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("module_name", module_name)
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -114,8 +164,7 @@ def _load_module(module_name: str):
 
 
 def _resolve_matching_pursuit_function(name: str) -> MatchingPursuitFunction:
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     key = name.lower()
     if key not in _MATCHING_PURSUIT_REGISTRY:
         raise ValueError(
@@ -165,8 +214,7 @@ def get_matching_pursuit(name: str) -> MatchingPursuit:
         - ``get_matching_pursuit("abstract")`` returns an adapter usable as
             ``mp.run(marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2)``.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     function = _resolve_matching_pursuit_function(name)
     return FunctionMatchingPursuit(name=name.lower(), function=function)
 
@@ -194,8 +242,7 @@ def bind_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> MatchingPursu
     MatchingPursuit
         An instance of the requested matching-pursuit adapter with the specified default arguments.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     matching_pursuit = get_matching_pursuit(name)
     if not isinstance(matching_pursuit, FunctionMatchingPursuit):
         return matching_pursuit
@@ -220,35 +267,128 @@ def run_matching_pursuit(name: str, *args: Any, **kwargs: Any) -> Any:
     Any
         The result of the matching-pursuit function.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     return get_matching_pursuit(name).run(*args, **kwargs)
 
 
-def matching_pursuit(name: str, *args: Any, **kwargs: Any) -> Any:
+def matching_pursuit(problem_sketch: ProblemSketch, **kwargs: Any) -> MatchingPursuitResults:
     """
-    Alias of :func:`run_matching_pursuit`.
-    
+    Run matching pursuit to find a sparse reconstruction.
+
     Parameters
     ----------
-    name : str
-        The name of the matching-pursuit backend to retrieve. Available backends can be listed with `list_matching_pursuits()`.
-    *args : Any
-        Positional arguments for the selected backend. In practice this is often
-        ``(marginals,)``.
+    problem_sketch : ProblemSketch
+        A ProblemSketch instance containing the problem configuration and data.
+        The appropriate backend ("explicit" or "abstract") is selected
+        automatically from ``problem_sketch.sketch_map``.
     **kwargs : Any
-        Keyword arguments for the selected backend. Common usable combinations are:
-
-        - ``matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10)``
-        - ``matching_pursuit("explicit", marginals, sketch=sketch, iteration_number=10, step=0.2)``
-        - ``matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10)``
-        - ``matching_pursuit("abstract", marginals, dit_constraints=constraints, dit_string_length=6, iteration_number=10, interaction_size=2, dit_dimension=2)``
+        Additional backend keyword arguments (for example ``iteration_number``,
+        ``step`` or ``optimizer``).
     
     Returns
     -------
-    Any
-        The result of the matching-pursuit function.
+    MatchingPursuitResults
+        Structured matching-pursuit result with positions, values, dit strings,
+        and run metadata.
+    
+    Examples
+    --------
+    Using the ProblemSketch API:
+
+    >>> from troma import CombinatorialProblem, ProblemSketch
+    >>> from troma.sketch_map import ConstraintSketchMap
+    >>> problem = CombinatorialProblem(objective_func, problem_size=3, problem_dimension=2)
+    >>> problem.sampling(100)
+    >>> sketch_map = ConstraintSketchMap(sketch_length=3)
+    >>> sketch_map.build_from_nearest_neighbors(interaction_size=2)
+    >>> problem_sketch = problem.sketching(sketch_map)
+    >>> result = matching_pursuit(problem_sketch, iteration_number=10)
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
-    return run_matching_pursuit(name, *args, **kwargs)
+    return _matching_pursuit_from_problem_sketch(problem_sketch, **kwargs)
+
+
+def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwargs: Any) -> MatchingPursuitResults:
+    """
+    Internal helper to run matching pursuit using a ProblemSketch instance.
+    
+    Automatically selects the appropriate backend based on the sketch_map type
+    and extracts all required parameters from the ProblemSketch.
+    
+    Parameters
+    ----------
+    problem_sketch : ProblemSketch
+        The problem sketch containing all configuration and data.
+    **kwargs : Any
+        Additional parameters like iteration_number, step, optimizer, etc.
+    
+    Returns
+    -------
+    MatchingPursuitResults
+        Structured matching-pursuit result.
+    """
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    
+    # Extract marginals from the problem sketch
+    marginals = problem_sketch.sketch_values
+    if not marginals:
+        raise ValueError("ProblemSketch must have a sketch. Call problem.mcco_sketching() first.")
+    
+    # Determine backend type and output metadata based on sketch_map type.
+    sketch_map = problem_sketch.sketch_map
+    run_dit_string_length = problem_sketch.problem_size
+    run_dit_dimension = problem_sketch.problem_dimension
+
+    # Restricted sketches are solved in restricted coordinates first.
+    if isinstance(problem_sketch, RestrictedProblemSketch):
+        run_dit_string_length = problem_sketch.restricted_problem_size
+        run_dit_dimension = problem_sketch.restricted_problem_dimension
+    
+    if isinstance(sketch_map, ConstraintSketchMap):
+        backend_name = "abstract"
+        interaction_size = sketch_map.interaction_size
+    
+    elif isinstance(sketch_map, ExplicitSketchMap):
+        backend_name = "explicit"
+        interaction_size = sketch_map.interaction_size
+    
+    else:
+        raise TypeError(f"Unsupported sketch_map type: {type(sketch_map).__name__}. "
+                       "Must be ConstraintSketchMap or ExplicitSketchMap.")
+    
+    raw_solution = run_matching_pursuit(backend_name, problem_sketch, **kwargs)
+    result = _build_matching_pursuit_results(
+        raw_solution,
+        backend_name=backend_name,
+        marginals=marginals,
+        dit_string_length=run_dit_string_length,
+        dit_dimension=run_dit_dimension,
+        interaction_size=interaction_size,
+    )
+
+    if not isinstance(problem_sketch, RestrictedProblemSketch):
+        return result
+
+    restriction = problem_sketch.restriction
+    mapped_dit_strings = reverse_spectrum_restriction(
+        result.dit_strings,
+        original_size=problem_sketch.problem_size,
+        dit_restrictions=restriction.dit_restrictions,
+        dit_value_restrictions=restriction.dit_value_restrictions,
+        additional_dits_val=restriction.additional_dits_val,
+    )
+    mapped_positions = np.array(
+        [s.to_integer() for s in mapped_dit_strings],
+        dtype=int,
+    )
+
+    return MatchingPursuitResults(
+        positions=mapped_positions,
+        values=result.values,
+        dit_strings=mapped_dit_strings,
+        backend_name=result.backend_name,
+        dit_string_length=problem_sketch.problem_size,
+        dit_dimension=problem_sketch.problem_dimension,
+        interaction_size=result.interaction_size,
+        marginals=result.marginals,
+        raw=result.raw,
+    )

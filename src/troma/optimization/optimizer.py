@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import inspect
 from importlib import import_module
 from typing import Any, Callable
-from .._validation import ensure_callable as _ensure_callable
+from .._validation import _Validator
 
 
 OptimizerFunction = Callable[..., int]
@@ -28,13 +28,10 @@ class FunctionOptimizer(Optimizer):
         default_args: tuple[Any, ...] = (),
         default_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        if not isinstance(name, str) or not name:
-            raise TypeError("name must be a non-empty string.")
-        _ensure_callable("function", function)
-        if not isinstance(default_args, tuple):
-            raise TypeError("default_args must be a tuple.")
-        if default_kwargs is not None and not isinstance(default_kwargs, dict):
-            raise TypeError("default_kwargs must be a dict or None.")
+        _Validator.ensure_nonempty_str("name", name)
+        _Validator.ensure_callable("function", function)
+        _Validator.ensure_tuple("default_args", default_args)
+        _Validator.ensure_optional_dict("default_kwargs", default_kwargs)
         self.name = name
         self._function = function
         self._default_args = default_args
@@ -103,12 +100,12 @@ _OPTIMIZER_REGISTRY: dict[str, tuple[str, str]] = {
     "simulated_annealing": ("classical", "simulated_annealing"),
     "digital_annealing": ("quantum", "digital_annealing"),
     "qaoa": ("quantum", "QAOA"),
+    "aoa": ("quantum", "AOA"),
 }
 
 
-def _load_module(module_name: str):
-    if not isinstance(module_name, str) or not module_name:
-        raise TypeError("module_name must be a non-empty string.")
+def _load_module(module_name: str) -> Any:
+    _Validator.ensure_nonempty_str("module_name", module_name)
     if __package__:
         try:
             return import_module(f".{module_name}", package=__package__)
@@ -118,8 +115,7 @@ def _load_module(module_name: str):
 
 
 def _resolve_optimizer_function(name: str) -> OptimizerFunction:
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     key = name.lower()
     if key not in _OPTIMIZER_REGISTRY:
         raise ValueError(
@@ -172,9 +168,10 @@ def get_optimizer(name: str) -> Optimizer:
             ``optimizer.optimize(marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``.
         - ``get_optimizer("qaoa")`` returns an optimizer that can be used as
             ``optimizer.optimize(marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3)``.
+        - ``get_optimizer("aoa")`` returns an optimizer that can be used as
+            ``optimizer.optimize(problem_sketch, number_layers=3, mixer="ring", hamming_weight=1)``.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     function = _resolve_optimizer_function(name)
     return FunctionOptimizer(name=name.lower(), function=function)
 
@@ -196,15 +193,15 @@ def bind_optimizer(name: str, *args: Any, **kwargs: Any) -> Optimizer:
         - ``bind_optimizer("brute_force_max", marginals, sketch=sketch)``
         - ``bind_optimizer("spin_chain_nn_max", marginals, dit_string_length=6, interaction_size=2, dit_dimension=2)``
         - ``bind_optimizer("dual_annealing", marginals, dit_constraints=constraints, dit_string_length=6, dit_dimension=2)``
-        - ``bind_optimizer("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, number_shots=2048)``
+        - ``bind_optimizer("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, number_shots=2048, sampler_options={"max_execution_time": 6})``
+        - ``bind_optimizer("aoa", number_layers=3, mixer="ring", hamming_weight=1)``
     
     Returns
     -------
     Optimizer
         An instance of the requested optimizer with the specified default arguments.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     optimizer = get_optimizer(name)
     if not isinstance(optimizer, FunctionOptimizer):
         return optimizer
@@ -230,12 +227,12 @@ def optimize(name: str, *args: Any, **kwargs: Any) -> int:
         - ``optimize("simulated_annealing", marginals, dit_constraints=constraints, dit_string_length=6, max_iter=500)``
         - ``optimize("digital_annealing", marginals, number_iter=2000)``
         - ``optimize("qaoa", marginals, bit_constraints=constraints, bit_string_length=6, number_layers=3, method="COBYLA")``
+        - ``optimize("aoa", problem_sketch, number_layers=3, mixer="ring", hamming_weight=1)``
     
     Returns
     -------
     int
         The result of the optimization.
     """
-    if not isinstance(name, str) or not name:
-        raise TypeError("name must be a non-empty string.")
+    _Validator.ensure_nonempty_str("name", name)
     return get_optimizer(name).optimize(*args, **kwargs)

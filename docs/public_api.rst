@@ -3,38 +3,62 @@ Public API
 
 This page documents the supported public interface exposed by ``troma``.
 
-Modeling
---------
+Combinatorial Problem
+---------------------
 
 .. currentmodule:: troma
 
-.. autofunction:: mcco_modeling
-.. autofunction:: solve_via_mcco
-
-
-Data utilities
---------------
-
-.. currentmodule:: troma
-
-.. autofunction:: integer_to_dit_string
-.. autofunction:: dit_string_to_integer
-.. autofunction:: dit_string_to_computational_basis
-.. autofunction:: create_cylinder_set_indicator
-.. autofunction:: kronecker_develop
-.. autofunction:: belongs_to_cylinder_set
-
-
-Sketches
---------
-
-.. currentmodule:: troma
-
-.. autoclass:: ConstraintSketch
+.. autoclass:: CombinatorialProblem
    :members:
    :show-inheritance:
 
-.. autoclass:: ExplicitSketch
+.. autoclass:: RestrictedProblem
+   :members:
+   :show-inheritance:
+
+
+Problem Sketches
+----------------
+
+.. currentmodule:: troma
+
+.. autoclass:: ProblemSketch
+   :members:
+   :show-inheritance:
+
+.. autoclass:: CombinatorialProblemSketch
+   :members:
+   :show-inheritance:
+
+.. autoclass:: RestrictedProblemSketch
+   :members:
+   :show-inheritance:
+
+
+Sketch Maps
+-----------
+
+.. currentmodule:: troma
+
+.. autoclass:: ConstraintSketchMap
+   :members:
+   :show-inheritance:
+
+.. autoclass:: ExplicitSketchMap
+   :members:
+   :show-inheritance:
+
+
+Matching Pursuit
+----------------
+
+.. currentmodule:: troma
+
+.. autofunction:: matching_pursuit
+.. autofunction:: get_matching_pursuit
+.. autofunction:: bind_matching_pursuit
+
+.. autoclass:: MatchingPursuitResults
    :members:
    :show-inheritance:
 
@@ -44,16 +68,42 @@ Optimization
 
 .. currentmodule:: troma
 
-.. autofunction:: bind_optimizer
 .. autofunction:: get_optimizer
+.. autofunction:: bind_optimizer
 .. autofunction:: optimize
 
 
-Decoding
---------
+Data Structures
+---------------
 
 .. currentmodule:: troma
 
-.. autofunction:: bind_matching_pursuit
-.. autofunction:: get_matching_pursuit
-.. autofunction:: matching_pursuit
+.. autoclass:: DitString
+   :members:
+   :show-inheritance:
+
+.. autoclass:: CylinderSet
+   :members:
+   :show-inheritance:
+
+.. autoclass:: Sample
+   :members:
+   :show-inheritance:
+
+.. autoclass:: Restriction
+   :members:
+   :show-inheritance:
+
+.. autoclass:: Hamiltonian
+   :members:
+   :show-inheritance:
+
+
+Embedding
+---------
+
+.. currentmodule:: troma
+
+.. autofunction:: spectrum_embedding
+.. autofunction:: spectrum_restriction
+.. autofunction:: reverse_spectrum_restriction

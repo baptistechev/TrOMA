@@ -1,6 +1,10 @@
 from qiskit import transpile
 
-from ._quantum_map import compute_hamiltonian, create_qaoa_circ
+from ._quantum_map import create_qaoa_circ
+from ..core.structure import Hamiltonian
+from ..problem_sketch import ProblemSketch
+from ..sketch_map import ConstraintSketchMap
+from .._validation import _Validator
 
 
 # M4 model coefficients fitted on 140 ibm_marrakesh experiments.
@@ -13,9 +17,7 @@ _A3 = 0.000018
 
 
 def estimate_matching_pursuit_qpu_cost(
-    constraints,
-    y,
-    bit_string_length: int,
+    problem_sketch: ProblemSketch,
     optimizer,
     matching_pursuit_iterations: int = 1,
     verbose: bool = True,
@@ -32,16 +34,15 @@ def estimate_matching_pursuit_qpu_cost(
 
     Parameters
     ----------
-    constraints:
-        Constraint sketch passed to ``compute_hamiltonian``.
-    y:
-        Marginals passed to ``compute_hamiltonian``.
-    bit_string_length:
-        Number of qubits.
+    problem_sketch:
+        Problem sketch containing:
+        - ``sketch_map``: must be a ``ConstraintSketchMap``
+        - ``sketch_values``: marginals used in the Hamiltonian
+        - problem-size metadata used to infer the effective qubit count.
     optimizer:
         A bound QAOA optimizer produced by ``bind_optimizer("qaoa", ...)``.
         The following keyword arguments must have been pre-bound:
-        ``sampler``, ``number_shots``, ``number_layers``.
+        ``backend``, ``number_shots``, ``number_layers``.
         ``optimizer_options["maxiter"]`` is used as the expected number of
         objective evaluations when present.
     matching_pursuit_iterations:
@@ -53,25 +54,26 @@ def estimate_matching_pursuit_qpu_cost(
         ``circuits_per_qaoa_run``, ``seconds_per_circuit``,
         ``qaoa_run_seconds``, ``total_seconds``.
     """
+    _Validator.ensure_instance("problem_sketch", problem_sketch, ProblemSketch)
+    _Validator.ensure_instance("problem_sketch.sketch_map", problem_sketch.sketch_map, ConstraintSketchMap)
+    if not problem_sketch.sketch_values:
+        raise ValueError("problem_sketch.sketch_values is empty. Build sketch values first.")
+
     kwargs = optimizer._default_kwargs
-    sampler = kwargs["sampler"]
+    backend = kwargs["backend"]
     number_shots = kwargs["number_shots"]
     num_layers = kwargs["number_layers"]
     optimizer_options = kwargs.get("optimizer_options") or {}
     expected_objective_evaluations = optimizer_options.get("maxiter", 100)
 
-    backend = getattr(sampler, "mode", None)
     if backend is None:
-        backend = getattr(sampler, "_backend", None)
-    if backend is None:
-        backend_getter = getattr(sampler, "backend", None)
-        if callable(backend_getter):
-            backend = backend_getter()
-    if backend is None:
-        raise ValueError("Could not resolve a backend from the bound sampler.")
+        raise ValueError(
+            "Could not resolve a backend from the bound optimizer. "
+            "Provide optimizer kwargs with 'backend'."
+        )
 
-    ham_data = compute_hamiltonian(constraints, y, bit_string_length=bit_string_length)
-    qaoa_circuit = create_qaoa_circ(ham_data, num_qubits=bit_string_length, num_layers=num_layers)
+    hamiltonian = Hamiltonian.from_problem_sketch(problem_sketch)
+    qaoa_circuit = create_qaoa_circ(hamiltonian, num_layers=num_layers)
     transpiled = transpile(qaoa_circuit, backend=backend, optimization_level=1)
 
     duration_us = transpiled.estimate_duration(target=backend.target, unit="µ")
