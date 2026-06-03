@@ -179,6 +179,41 @@ class TestBindOptimizer:
         with pytest.raises(ValueError):
             bind_optimizer("nonexistent_optimizer")
 
+    def test_aoa_bound_optimizer_returns_plain_int_by_default(self):
+        constraints, _, marginals = _nn_setup()
+        problem_sketch = _constraint_problem_sketch(marginals, constraints, n=3, k=2, d=2)
+        opt = bind_optimizer(
+            "aoa",
+            problem_sketch,
+            number_layers=1,
+            number_shots=64,
+            optimizer_options={"maxiter": 5},
+        )
+
+        result = opt.optimize()
+
+        assert isinstance(result, int)
+        assert not hasattr(result, "final_parameters")
+
+    def test_aoa_bound_optimizer_preserves_metadata_when_requested(self):
+        constraints, _, marginals = _nn_setup()
+        problem_sketch = _constraint_problem_sketch(marginals, constraints, n=3, k=2, d=2)
+        opt = bind_optimizer(
+            "aoa",
+            problem_sketch,
+            number_layers=1,
+            number_shots=64,
+            optimizer_options={"maxiter": 5},
+            return_metadata=True,
+        )
+
+        result = opt.optimize()
+
+        assert isinstance(result, int)
+        assert result.final_parameters.shape == (2,)
+        assert result.circuit_depth > 0
+        assert result.solver_steps > 0
+
 
 # ---------------------------------------------------------------------------
 # optimize (convenience)

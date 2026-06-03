@@ -15,6 +15,22 @@ from .structure import DitString
 from .post_processing import greedy_2_bit_swap
 
 
+def _extract_optimizer_metadata(result: Any, selected_index: int) -> dict[str, Any] | None:
+    if not hasattr(result, "final_parameters"):
+        return None
+
+    return {
+        "selected_index": int(selected_index),
+        "final_parameters": np.asarray(result.final_parameters, dtype=float).copy(),
+        "gammas": tuple(float(gamma) for gamma in getattr(result, "gammas", ())),
+        "betas": tuple(float(beta) for beta in getattr(result, "betas", ())),
+        "number_layers": int(getattr(result, "number_layers", 0)),
+        "circuit_depth": int(getattr(result, "circuit_depth", 0)),
+        "solver_steps": int(getattr(result, "solver_steps", 0)),
+        "objective_evaluations": int(getattr(result, "objective_evaluations", 0)),
+    }
+
+
 def _column_vector_to_array(vec: Any) -> np.ndarray:
     return np.asarray(vec).reshape(-1)
 
@@ -25,6 +41,7 @@ def matchingpursuit_explicit(
     step: float | None = None,
     optimizer: Any | None = None,
     post_processing: str | None = None,
+    return_optimizer_metadata: bool = False,
     verbose: bool = False,
 ) -> np.ndarray:
     """
@@ -43,6 +60,8 @@ def matchingpursuit_explicit(
     post_processing : str or None, optional
         Name of a post-processing function to apply to the optimizer solution
         at each iteration.  Supported values: ``"2_bit_swap"``.
+    return_optimizer_metadata : bool, optional
+        If True, collect per-iteration optimizer metadata when available.
     verbose : bool, optional
         If True, print per-iteration information about the post-processing
         outcome. Default is False.
@@ -73,6 +92,7 @@ def matchingpursuit_explicit(
 
     r = copy.deepcopy(marginals)
     selections = []
+    optimizer_metadata = [] if return_optimizer_metadata else None
 
     for _ in range(iteration_number):
 
@@ -81,7 +101,12 @@ def matchingpursuit_explicit(
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
         residue_sketch = problem_sketch.update_sketch(r)
-        t = optimizer.optimize(residue_sketch, verbose=verbose)
+        optimizer_result = optimizer.optimize(
+            residue_sketch,
+            verbose=verbose,
+            return_metadata=return_optimizer_metadata,
+        )
+        t = int(optimizer_result)
         if post_processing is None:
             pass
         elif post_processing == "2_bit_swap":
@@ -101,8 +126,13 @@ def matchingpursuit_explicit(
 
         r -= alpha * At
         selections.append((t, alpha))
+        if optimizer_metadata is not None:
+            optimizer_metadata.append(_extract_optimizer_metadata(optimizer_result, t))
 
-    return np.array([[idx, coeff] for idx, coeff in selections])
+    solution = np.array([[idx, coeff] for idx, coeff in selections])
+    if optimizer_metadata is None:
+        return solution
+    return {"raw": solution, "optimizer_metadata": optimizer_metadata}
 
 
 def matchingpursuit_abstract(
@@ -111,6 +141,7 @@ def matchingpursuit_abstract(
     step: float | None = None,
     optimizer: Any | None = None,
     post_processing: str | None = None,
+    return_optimizer_metadata: bool = False,
     verbose: bool = False,
 ) -> np.ndarray:
     """
@@ -129,6 +160,8 @@ def matchingpursuit_abstract(
     post_processing : str or None, optional
         Name of a post-processing function to apply to the optimizer solution
         at each iteration.  Supported values: ``"2_bit_swap"``.
+    return_optimizer_metadata : bool, optional
+        If True, collect per-iteration optimizer metadata when available.
     verbose : bool, optional
         If True, print per-iteration information about the post-processing
         outcome. Default is False.
@@ -158,13 +191,19 @@ def matchingpursuit_abstract(
 
     r = copy.deepcopy(marginals)
     selections = []
+    optimizer_metadata = [] if return_optimizer_metadata else None
 
     for _ in range(iteration_number):
         residue_sketch = problem_sketch.update_sketch(r)
         if not any(residue_sketch.sketch_values):
             warnings.warn("Early stop: residue reached zero.", stacklevel=2)
             break
-        t = optimizer.optimize(residue_sketch, verbose=verbose)
+        optimizer_result = optimizer.optimize(
+            residue_sketch,
+            verbose=verbose,
+            return_metadata=return_optimizer_metadata,
+        )
+        t = int(optimizer_result)
         if post_processing is None:
             pass
         elif post_processing == "2_bit_swap":
@@ -185,5 +224,10 @@ def matchingpursuit_abstract(
 
         r -= alpha * At
         selections.append((t, alpha))
+        if optimizer_metadata is not None:
+            optimizer_metadata.append(_extract_optimizer_metadata(optimizer_result, t))
 
-    return np.array([[idx, coeff] for idx, coeff in selections])
+    solution = np.array([[idx, coeff] for idx, coeff in selections])
+    if optimizer_metadata is None:
+        return solution
+    return {"raw": solution, "optimizer_metadata": optimizer_metadata}

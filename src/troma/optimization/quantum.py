@@ -16,8 +16,32 @@ from qamomile.qiskit import QiskitTranspiler
 from .qamomile_addon import IBMRuntimeExecutor, AerLocalExecutor
 from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
-from ..core.structure import DitString
+from ..core.structure import DitString, VariationalOptimizationResult
 from .._validation import _Validator
+
+
+def _extract_circuit_depth(executable: Any) -> int:
+    circuit = None
+    if hasattr(executable, "get_first_circuit"):
+        circuit = executable.get_first_circuit()
+    elif hasattr(executable, "quantum_circuit"):
+        circuit = executable.quantum_circuit
+
+    if circuit is None or not hasattr(circuit, "depth"):
+        return 0
+    return int(circuit.depth())
+
+
+def _extract_solver_steps(result: Any) -> int:
+    steps = getattr(result, "nit", None)
+    if steps is not None:
+        return int(steps)
+
+    evaluations = getattr(result, "nfev", None)
+    if evaluations is not None:
+        return int(evaluations)
+
+    return 0
 
 
 def digital_annealing(problem_sketch: ProblemSketch, number_iter: int = 1000) -> int:
@@ -157,6 +181,7 @@ def _run_variational(
     method: str,
     optimizer_options: dict | None,
     x0: np.ndarray | None = None,
+    return_metadata: bool = False,
 ) -> int:
     def cost_fn(params):
         gammas = list(params[:number_layers])
@@ -180,6 +205,7 @@ def _run_variational(
         options=dict(optimizer_options or {}),
     )
 
+    final_parameters = np.asarray(res.x, dtype=float)
     gammas_opt = list(res.x[:number_layers])
     betas_opt = list(res.x[number_layers:])
     sample_result = executable.sample(
@@ -191,7 +217,20 @@ def _run_variational(
 
     max_idx = sample_set.energy.index(max(sample_set.energy))
     best = sample_set.samples[max_idx]
-    return DitString(best.values()).to_integer('R')
+    best_index = DitString(best.values()).to_integer('R')
+    if not return_metadata:
+        return best_index
+
+    return VariationalOptimizationResult(
+        best_index,
+        final_parameters=final_parameters,
+        gammas=gammas_opt,
+        betas=betas_opt,
+        number_layers=number_layers,
+        circuit_depth=_extract_circuit_depth(executable),
+        solver_steps=_extract_solver_steps(res),
+        objective_evaluations=int(getattr(res, "nfev", _extract_solver_steps(res))),
+    )
 
 
 def QAOA(
@@ -206,8 +245,14 @@ def QAOA(
     pretrain: bool = False,
     pretrain_options: dict | None = None,
     x0: np.ndarray | None = None,
+    return_metadata: bool = False,
 ) -> int:
-    """
+    """Optimize a sketch with QAOA.
+
+    By default this returns a plain ``int``. If ``return_metadata=True``, the
+    return value is an int-compatible object exposing ``final_parameters``,
+    ``gammas``, ``betas``, ``circuit_depth``, ``solver_steps``, and
+    ``objective_evaluations``.
     """
     _, _, number_layers, number_shots = _validate_variational_inputs(
         problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
@@ -228,7 +273,17 @@ def QAOA(
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
         x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
-    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)
+    return _run_variational(
+        converter,
+        executable,
+        my_executor,
+        number_layers,
+        number_shots,
+        method,
+        optimizer_options,
+        x0=x0,
+        return_metadata=return_metadata,
+    )
 
 
 def AOA(
@@ -248,6 +303,7 @@ def AOA(
     pretrain: bool = False,
     pretrain_options: dict | None = None,
     x0: np.ndarray | None = None,
+    return_metadata: bool = False,
 ) -> int:
     """Perform optimization using the Adaptive Optimization Algorithm (AOA) from the Qamomile library.
      See https://arxiv.org/abs/2211.13227 for more details on the algorithm and its implementation.
@@ -283,11 +339,16 @@ def AOA(
     x0 : np.ndarray, optional
         Initial parameters for the classical optimizer (gammas followed by betas, length 2 * number_layers).
         Takes precedence over pretrain if both are provided. Defaults to None, which uses all-ones.
+    return_metadata : bool, optional
+        If True, return an int-compatible result object exposing optimization
+        metadata. If False, return only the best index. Defaults to False.
 
     Returns
     -------
-    int
-        The index of the dit string that maximizes the sum of the marginals according to the AOA optimization.
+    int | VariationalOptimizationResult
+        The best dit-string index. When ``return_metadata=True``, metadata is
+        available through ``final_parameters``, ``gammas``, ``betas``,
+        ``circuit_depth``, ``solver_steps``, and ``objective_evaluations``.
     """
     _, _, number_layers, number_shots = _validate_variational_inputs(
         problem_sketch, number_layers, number_shots, method, optimizer_options, sampler_options
@@ -319,4 +380,14 @@ def AOA(
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
         x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
-    return _run_variational(converter, executable, my_executor, number_layers, number_shots, method, optimizer_options, x0=x0)
+    return _run_variational(
+        converter,
+        executable,
+        my_executor,
+        number_layers,
+        number_shots,
+        method,
+        optimizer_options,
+        x0=x0,
+        return_metadata=return_metadata,
+    )

@@ -18,6 +18,14 @@ from .sketch_map import ConstraintSketchMap, ExplicitSketchMap
 MatchingPursuitFunction = Callable[..., Any]
 
 
+def _unpack_matching_pursuit_solution(solution: Any) -> tuple[Any, list[dict[str, Any] | None] | None]:
+    if isinstance(solution, dict) and "raw" in solution:
+        optimizer_metadata = solution.get("optimizer_metadata")
+        if optimizer_metadata is not None and not isinstance(optimizer_metadata, list):
+            raise TypeError("optimizer_metadata must be a list when provided.")
+        return solution["raw"], optimizer_metadata
+    return solution, None
+
 
 def _coerce_solution_array(solution: Any) -> np.ndarray:
     """Normalize backend solution to shape ``(n, 2)``."""
@@ -43,7 +51,8 @@ def _build_matching_pursuit_results(
     interaction_size: int | None,
 ) -> MatchingPursuitResults:
     """Build a structured ``MatchingPursuitResults`` object from backend output."""
-    raw = _coerce_solution_array(solution)
+    raw_solution, optimizer_metadata = _unpack_matching_pursuit_solution(solution)
+    raw = _coerce_solution_array(raw_solution)
     positions = raw[:, 0].astype(int) if raw.size > 0 else np.array([], dtype=int)
     values = raw[:, 1].astype(float) if raw.size > 0 else np.array([], dtype=float)
     dit_strings = [
@@ -61,6 +70,7 @@ def _build_matching_pursuit_results(
         interaction_size=None if interaction_size is None else int(interaction_size),
         marginals=np.asarray(marginals, dtype=float),
         raw=raw,
+        optimizer_metadata=optimizer_metadata,
     )
 
 
@@ -391,4 +401,5 @@ def _matching_pursuit_from_problem_sketch(problem_sketch: ProblemSketch, **kwarg
         interaction_size=result.interaction_size,
         marginals=result.marginals,
         raw=result.raw,
+        optimizer_metadata=result.optimizer_metadata,
     )
