@@ -205,6 +205,7 @@ def QAOA(
     verbose: bool = False,
     pretrain: bool = False,
     pretrain_options: dict | None = None,
+    x0: np.ndarray | None = None,
 ) -> int:
     """
     """
@@ -221,8 +222,7 @@ def QAOA(
 
     executable = converter.transpile(QiskitTranspiler(), p=number_layers)
 
-    x0 = None
-    if pretrain:
+    if x0 is None and pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
         hamiltonian = problem_sketch.to_hamiltonian()
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
@@ -247,6 +247,7 @@ def AOA(
     verbose: bool = False,
     pretrain: bool = False,
     pretrain_options: dict | None = None,
+    x0: np.ndarray | None = None,
 ) -> int:
     """Perform optimization using the Adaptive Optimization Algorithm (AOA) from the Qamomile library.
      See https://arxiv.org/abs/2211.13227 for more details on the algorithm and its implementation.
@@ -279,7 +280,10 @@ def AOA(
         Additional options to pass to the quantum sampler (e.g. max_execution_time for RuntimeSampler backends). Defaults to None.
     verbose : bool, optional
         Whether to print additional information during the optimization process. Defaults to False.
-     
+    x0 : np.ndarray, optional
+        Initial parameters for the classical optimizer (gammas followed by betas, length 2 * number_layers).
+        Takes precedence over pretrain if both are provided. Defaults to None, which uses all-ones.
+
     Returns
     -------
     int
@@ -309,8 +313,7 @@ def AOA(
         block_size=block_size,
     )
 
-    x0 = None
-    if pretrain:
+    if x0 is None and pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
         hamiltonian = problem_sketch.to_hamiltonian()
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
