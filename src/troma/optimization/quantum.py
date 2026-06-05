@@ -17,6 +17,7 @@ from .qamomile_addon import IBMRuntimeExecutor, AerLocalExecutor
 from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from ..sketch_map import ConstraintSketchMap
 from ..core.structure import DitString, VariationalOptimizationResult
+from ..core.embedding import reverse_spectrum_restriction
 from .._validation import _Validator
 
 
@@ -172,6 +173,35 @@ def _build_executor(
     return IBMRuntimeExecutor(sampler, backend), backend
 
 
+def _select_best_by_real_cost(sample_set: Any, problem_sketch: ProblemSketch) -> tuple[int, int]:
+    best_val: float | None = None
+    best_index: int | None = None
+    n_evaluations = 0
+
+    for sample in sample_set.samples:
+        dit_string = DitString(list(sample.values()))
+
+        if isinstance(problem_sketch, RestrictedProblemSketch):
+            full = reverse_spectrum_restriction(
+                [dit_string],
+                original_size=problem_sketch.problem_size,
+                dit_restrictions=problem_sketch.restriction.dit_restrictions,
+                dit_value_restrictions=problem_sketch.restriction.dit_value_restrictions,
+                additional_dits_val=problem_sketch.restriction.additional_dits_val,
+            )
+            eval_str = full[0]
+        else:
+            eval_str = dit_string
+
+        val = float(problem_sketch.objective_function(np.asarray(eval_str)))
+        n_evaluations += 1
+        if best_val is None or val > best_val:
+            best_val = val
+            best_index = dit_string.to_integer('R')
+
+    return best_index, n_evaluations
+
+
 def _run_variational(
     converter: QAOAConverter,
     executable,
@@ -182,6 +212,7 @@ def _run_variational(
     optimizer_options: dict | None,
     x0: np.ndarray | None = None,
     return_metadata: bool = False,
+    problem_sketch: ProblemSketch | None = None,
 ) -> int:
     def cost_fn(params):
         gammas = list(params[:number_layers])
@@ -215,9 +246,21 @@ def _run_variational(
     ).result()
     sample_set = converter.decode(sample_result)
 
-    max_idx = sample_set.energy.index(max(sample_set.energy))
-    best = sample_set.samples[max_idx]
-    best_index = DitString(best.values()).to_integer('R')
+    num_occurrences = getattr(sample_set, 'num_occurrences', None)
+    final_sample_distribution: dict[int, int] = {}
+    for i, sample in enumerate(sample_set.samples):
+        idx = DitString(list(sample.values())).to_integer('R')
+        count = int(num_occurrences[i]) if num_occurrences is not None else 1
+        final_sample_distribution[idx] = final_sample_distribution.get(idx, 0) + count
+
+    if problem_sketch is not None and hasattr(problem_sketch, 'objective_function'):
+        best_index, truth_evals = _select_best_by_real_cost(sample_set, problem_sketch)
+    else:
+        max_idx = sample_set.energy.index(max(sample_set.energy))
+        best = sample_set.samples[max_idx]
+        best_index = DitString(best.values()).to_integer('R')
+        truth_evals = 0
+
     if not return_metadata:
         return best_index
 
@@ -230,6 +273,8 @@ def _run_variational(
         circuit_depth=_extract_circuit_depth(executable),
         solver_steps=_extract_solver_steps(res),
         objective_evaluations=int(getattr(res, "nfev", _extract_solver_steps(res))),
+        truth_objective_evaluations=truth_evals,
+        final_sample_distribution=final_sample_distribution,
     )
 
 
@@ -283,6 +328,7 @@ def QAOA(
         optimizer_options,
         x0=x0,
         return_metadata=return_metadata,
+        problem_sketch=problem_sketch,
     )
 
 
@@ -390,4 +436,5 @@ def AOA(
         optimizer_options,
         x0=x0,
         return_metadata=return_metadata,
+        problem_sketch=problem_sketch,
     )

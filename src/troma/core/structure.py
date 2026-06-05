@@ -110,6 +110,8 @@ class VariationalOptimizationResult(int):
         circuit_depth: int,
         solver_steps: int,
         objective_evaluations: int,
+        truth_objective_evaluations: int = 0,
+        final_sample_distribution: dict | None = None,
     ) -> "VariationalOptimizationResult":
         value = _Validator.ensure_int("best_index", best_index, min_value=0)
         obj = int.__new__(cls, value)
@@ -123,6 +125,10 @@ class VariationalOptimizationResult(int):
         obj.objective_evaluations = _Validator.ensure_int(
             "objective_evaluations", objective_evaluations, min_value=0
         )
+        obj.truth_objective_evaluations = _Validator.ensure_int(
+            "truth_objective_evaluations", truth_objective_evaluations, min_value=0
+        )
+        obj.final_sample_distribution = dict(final_sample_distribution) if final_sample_distribution is not None else {}
         return obj
 
 
