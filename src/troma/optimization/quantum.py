@@ -214,6 +214,8 @@ def _run_variational(
     return_metadata: bool = False,
     problem_sketch: ProblemSketch | None = None,
 ) -> int:
+    feasibility_fn = getattr(problem_sketch, "feasibility_function", None)
+
     def cost_fn(params):
         gammas = list(params[:number_layers])
         betas = list(params[number_layers:])
@@ -224,6 +226,20 @@ def _run_variational(
         )
         result = job.result()
         decoded = converter.decode_to_binary_sampleset(result)
+
+        if feasibility_fn is not None:
+            feasible_energies, feasible_occurrences = [], []
+            for s, e, o in zip(decoded.samples, decoded.energy, decoded.num_occurrences):
+                if feasibility_fn(np.array(list(s.values()))):
+                    feasible_energies.append(e)
+                    feasible_occurrences.append(o)
+            if feasible_energies:
+                e_arr = np.array(feasible_energies)
+                o_arr = np.array(feasible_occurrences)
+                return -float(e_arr @ o_arr / o_arr.sum())
+            # All shots leaked out of feasible subspace — return neutral signal
+            return 0.0
+
         return -decoded.energy_mean()
 
     number_parameters = 2 * number_layers

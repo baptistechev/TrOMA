@@ -28,6 +28,8 @@ def _extract_optimizer_metadata(result: Any, selected_index: int) -> dict[str, A
         "circuit_depth": int(getattr(result, "circuit_depth", 0)),
         "solver_steps": int(getattr(result, "solver_steps", 0)),
         "objective_evaluations": int(getattr(result, "objective_evaluations", 0)),
+        "truth_objective_evaluations": int(getattr(result, "truth_objective_evaluations", 0)),
+        "final_sample_distribution": dict(getattr(result, "final_sample_distribution", {})),
     }
 
 
