@@ -100,6 +100,8 @@ def _simulator_refinement(
     force_simulator: bool = False,
     device: str = "CPU",
     num_threads: int | None = None,
+    mps_truncation_threshold: float | None = None,
+    mps_max_bond_dimension: int | None = None,
     verbose: bool = False,
 ) -> np.ndarray:
     """Refine the INTERP warm start on a local AerSimulator via COBYLA.
@@ -114,6 +116,8 @@ def _simulator_refinement(
 
     device="GPU" requires qiskit-aer-gpu and a CUDA-capable card.
     num_threads controls CPU parallelism (None = Aer default = all cores).
+    mps_truncation_threshold / mps_max_bond_dimension are MPS-specific options
+    passed directly to AerSimulator; ignored for other sim_method values.
     """
     if not force_simulator and hamiltonian.num_qubits > _MAX_SIM_QUBITS:
         if verbose:
@@ -124,16 +128,23 @@ def _simulator_refinement(
             )
         return x0
 
+    if max_iter <= 0:
+        return x0
+
     if verbose:
         print(
             f"[pretrain] Running AerSimulator refinement "
-            f"(method={sim_method}, device={device}, "
+            f"(method={sim_method}, device={device}, p={number_layers}, "
             f"max_iter={max_iter}, shots={number_shots}) ..."
         )
 
     sim_options: dict = {"method": sim_method, "device": device}
     if num_threads is not None:
         sim_options["max_parallel_threads"] = num_threads
+    if mps_truncation_threshold is not None:
+        sim_options["matrix_product_state_truncation_threshold"] = mps_truncation_threshold
+    if mps_max_bond_dimension is not None:
+        sim_options["matrix_product_state_max_bond_dimension"] = mps_max_bond_dimension
     sim = AerSimulator(**sim_options)
     my_executor = AerLocalExecutor(sim)
 
@@ -174,6 +185,10 @@ def pretrain_qaoa_parameters(
     force_simulator: bool = False,
     device: str = "CPU",
     num_threads: int | None = None,
+    mps_truncation_threshold: float | None = None,
+    mps_max_bond_dimension: int | None = None,
+    progressive_depth_refinement: bool = False,
+    max_sim_iter_p1: int = 30,
     verbose: bool = False,
 ) -> np.ndarray:
     """Pre-train QAOA/AOA parameters classically before the main QPU optimization.
@@ -192,8 +207,8 @@ def pretrain_qaoa_parameters(
         AerSimulator simulation method. "statevector" is exact up to ~25 qubits;
         "matrix_product_state" scales to larger circuits.
     max_sim_iter : int
-        Maximum COBYLA iterations for simulator refinement. 50 is sufficient
-        for a warm start.
+        Maximum COBYLA iterations for simulator refinement at the target depth p.
+        Set to 0 to skip full-depth refinement entirely.
     force_simulator : bool
         If False (default), skip simulator refinement when the circuit has more
         than _MAX_SIM_QUBITS (25) qubits and return the INTERP warm start
@@ -203,6 +218,22 @@ def pretrain_qaoa_parameters(
         "CPU" (default) or "GPU". GPU requires qiskit-aer-gpu and CUDA.
     num_threads : int | None
         CPU thread count passed to AerSimulator. None lets Aer use all cores.
+    mps_truncation_threshold : float | None
+        Singular-value truncation threshold for the MPS simulator
+        (matrix_product_state_truncation_threshold in AerSimulator).
+        Only applied when sim_method="matrix_product_state". A value around
+        1e-6 significantly cuts runtime on large circuits with small quality loss.
+    mps_max_bond_dimension : int | None
+        Maximum MPS bond dimension (matrix_product_state_max_bond_dimension).
+        Caps entanglement representation; 64–128 is usually enough for warm-starting.
+    progressive_depth_refinement : bool
+        When True and number_layers > 1, first refine at p=1 (shallow circuit,
+        fast), then INTERP the result to the target depth, then run a short
+        refinement at full depth. This is much faster than jumping straight to
+        full depth when the circuit is large.
+    max_sim_iter_p1 : int
+        COBYLA iteration budget for the p=1 refinement stage when
+        progressive_depth_refinement=True. Default 30.
     verbose : bool
         Print progress messages at each stage.
 
@@ -212,6 +243,15 @@ def pretrain_qaoa_parameters(
         Shape (2*number_layers,) in TrOMA layout:
         [gamma_0, ..., gamma_{p-1}, beta_0, ..., beta_{p-1}].
     """
+    shared_refinement_kwargs = dict(
+        force_simulator=force_simulator,
+        device=device,
+        num_threads=num_threads,
+        mps_truncation_threshold=mps_truncation_threshold,
+        mps_max_bond_dimension=mps_max_bond_dimension,
+        verbose=verbose,
+    )
+
     if verbose:
         print(
             f"[pretrain] Starting p=1 grid scan "
@@ -224,20 +264,38 @@ def pretrain_qaoa_parameters(
     if verbose:
         print(f"[pretrain] Grid scan done: β={beta1:.4f}, γ={gamma1:.4f}")
 
-    x0 = _interp_warm_start(beta1, gamma1, number_layers)
-
-    if verbose:
-        gammas = np.array2string(x0[:number_layers], precision=4, separator=", ")
-        betas = np.array2string(x0[number_layers:], precision=4, separator=", ")
-        print(f"[pretrain] INTERP warm start (p={number_layers}): γ={gammas}, β={betas}")
+    if progressive_depth_refinement and number_layers > 1:
+        # Stage 2a: refine at p=1 — half the circuit depth, only 2 parameters.
+        # Cheap even on large qubit counts because MPS bond dimension stays small.
+        x0_p1 = _interp_warm_start(beta1, gamma1, 1)
+        if verbose:
+            print(f"[pretrain] Progressive mode: refining at p=1 ({max_sim_iter_p1} iter) ...")
+        x0_p1 = _simulator_refinement(
+            hamiltonian, x0_p1, 1, number_shots, sim_method,
+            max_iter=max_sim_iter_p1,
+            **shared_refinement_kwargs,
+        )
+        # TrOMA layout for p=1: [gamma1_ref, beta1_ref]
+        gamma1_ref, beta1_ref = float(x0_p1[0]), float(x0_p1[1])
+        x0 = _interp_warm_start(beta1_ref, gamma1_ref, number_layers)
+        if verbose:
+            gammas = np.array2string(x0[:number_layers], precision=4, separator=", ")
+            betas = np.array2string(x0[number_layers:], precision=4, separator=", ")
+            print(
+                f"[pretrain] INTERP from refined p=1 to p={number_layers}: "
+                f"γ={gammas}, β={betas}"
+            )
+    else:
+        x0 = _interp_warm_start(beta1, gamma1, number_layers)
+        if verbose:
+            gammas = np.array2string(x0[:number_layers], precision=4, separator=", ")
+            betas = np.array2string(x0[number_layers:], precision=4, separator=", ")
+            print(f"[pretrain] INTERP warm start (p={number_layers}): γ={gammas}, β={betas}")
 
     result = _simulator_refinement(
         hamiltonian, x0, number_layers, number_shots, sim_method,
         max_iter=max_sim_iter,
-        force_simulator=force_simulator,
-        device=device,
-        num_threads=num_threads,
-        verbose=verbose,
+        **shared_refinement_kwargs,
     )
 
     if verbose:

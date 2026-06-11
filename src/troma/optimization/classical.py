@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import scipy.optimize as scipy_opt
@@ -198,6 +198,7 @@ def simulated_annealing(
     max_iter: int = 1000,
     T0: float = 1.0,
     alpha: float = 0.99,
+    local_search_fn: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> int:
     """
     Simulated-annealing maximization over the dit-string space.
@@ -212,6 +213,10 @@ def simulated_annealing(
         Initial temperature. Default is 1.0.
     alpha : float, optional
         Cooling rate in (0, 1). Default is 0.99.
+    local_search_fn : Callable[[np.ndarray], np.ndarray], optional
+        Function that proposes a neighbour given the current dit-string array.
+        Must return a new array of the same shape without modifying the input.
+        Defaults to a single random XOR flip (binary neighbourhood).
 
     Returns
     -------
@@ -238,21 +243,26 @@ def simulated_annealing(
     if len(marginals) != len(dit_constraints):
         raise ValueError("marginals and dit_constraints must have the same length.")
 
+    def _default_sampling(x: np.ndarray) -> np.ndarray:
+        x_new = x.copy()
+        x_new[np.random.randint(len(x_new))] ^= 1
+        return x_new
+
+    _propose = local_search_fn if local_search_fn is not None else _default_sampling
+
     def _sa_binary(f: Any, n: int) -> tuple[np.ndarray, float]:
         x = np.random.randint(0, dit_dimension, size=n)
         fx = f(x)
-        best_x = copy.deepcopy(x)
+        best_x = x.copy()
         best_fx = fx
         T = T0
         for _ in range(max_iter):
-            x_new = copy.deepcopy(x)
-            idx = np.random.randint(n)
-            x_new[idx] ^= 1
+            x_new = _propose(x)
             f_new = f(x_new)
             if f_new < fx or np.random.rand() < np.exp((fx - f_new) / T):
                 x, fx = x_new, f_new
                 if fx < best_fx:
-                    best_x, best_fx = copy.deepcopy(x), fx
+                    best_x, best_fx = x.copy(), fx
             T *= alpha
         return best_x, best_fx
 

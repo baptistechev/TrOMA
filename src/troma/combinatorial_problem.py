@@ -58,10 +58,12 @@ class CombinatorialProblem:
         objective_function: Callable,
         problem_size: int,
         problem_dimension: int = 2,
+        feasibility_function: Callable | None = None,
     ) -> None:
         self.objective_function: Callable = objective_function
         self.problem_size: int = problem_size
         self.problem_dimension: int = problem_dimension
+        self.feasibility_function: Callable | None = feasibility_function
         self.sample: Sample = Sample()
 
     def restrict(self, restriction: Restriction) -> RestrictedProblem:
@@ -345,6 +347,7 @@ class RestrictedProblem(CombinatorialProblem):
             objective_function=problem.objective_function,
             problem_size=problem.problem_size,
             problem_dimension=problem.problem_dimension,
+            feasibility_function=problem.feasibility_function,
         )
 
         # Backward compatibility for legacy positional calls

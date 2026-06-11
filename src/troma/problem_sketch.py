@@ -54,6 +54,7 @@ class CombinatorialProblemSketch(ProblemSketch):
         _Validator.ensure_instance("sketch_map", sketch_map, SketchMap)
 
         self.objective_function = problem.objective_function
+        self.feasibility_function = problem.feasibility_function
         self.problem_size: int = problem.problem_size
         self.problem_dimension: int = problem.problem_dimension
         self.sample: Sample = problem.sample
@@ -69,6 +70,7 @@ class CombinatorialProblemSketch(ProblemSketch):
         _Validator.ensure_instance("other", other, CombinatorialProblemSketch)
         new_instance = cls.__new__(cls)
         new_instance.objective_function = other.objective_function
+        new_instance.feasibility_function = other.feasibility_function
         new_instance.problem_size = other.problem_size
         new_instance.problem_dimension = other.problem_dimension
         new_instance.sample = other.sample
@@ -118,6 +120,7 @@ class RestrictedProblemSketch(ProblemSketch):
         _Validator.ensure_instance("sketch_map", sketch_map, SketchMap)
 
         self.objective_function = problem.objective_function
+        self.feasibility_function = problem.feasibility_function
         self.problem_size: int = problem.problem_size
         self.problem_dimension: int = problem.problem_dimension
         self.restriction: Restriction = problem.restriction
@@ -136,6 +139,7 @@ class RestrictedProblemSketch(ProblemSketch):
         _Validator.ensure_instance("other", other, RestrictedProblemSketch)
         new_instance = cls.__new__(cls)
         new_instance.objective_function = other.objective_function
+        new_instance.feasibility_function = other.feasibility_function
         new_instance.problem_size = other.problem_size
         new_instance.problem_dimension = other.problem_dimension
         new_instance.restriction = other.restriction

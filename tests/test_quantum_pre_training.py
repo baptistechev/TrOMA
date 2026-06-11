@@ -390,6 +390,19 @@ class TestAOAWithPretrain:
         assert isinstance(result, int)
         assert 0 <= result < 2**3
 
+    def test_return_metadata_exposes_aoa_details(self):
+        sketch = _nn_problem_sketch()
+        result = AOA(sketch, number_layers=1, number_shots=64,
+                     optimizer_options=_OPTIMIZER_FAST, pretrain=False,
+                     return_metadata=True)
+
+        assert result.number_layers == 1
+        assert result.final_parameters.shape == (2,)
+        assert tuple(result.final_parameters) == pytest.approx(result.gammas + result.betas)
+        assert result.circuit_depth > 0
+        assert result.solver_steps > 0
+        assert result.objective_evaluations >= result.solver_steps
+
     def test_pretrain_true_returns_int(self):
         pytest.importorskip("qaoa_training_pipeline", reason="qaoa-training-pipeline not installed")
         sketch = _nn_problem_sketch()

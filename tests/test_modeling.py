@@ -6,6 +6,7 @@ import pytest
 from troma import (
     CombinatorialProblem,
     ConstraintSketchMap,
+    bind_optimizer,
     matching_pursuit,
 )
 from troma.core.structure import MatchingPursuitResults
@@ -178,6 +179,31 @@ class TestMatchingPursuitIntegration:
         result = matching_pursuit(sketch, iteration_number=2)
         d = result.to_dict()
         assert {"positions", "values", "n_lines", "dit_strings"}.issubset(d)
+
+    def test_can_collect_optional_aoa_metadata(self):
+        np.random.seed(15)
+        prob = CombinatorialProblem(_sum_of_bits, problem_size=4)
+        prob.sampling(n_samples=40)
+        sketch = prob.sketching("nearest_neighbors", interaction_size=2)
+        aoa = bind_optimizer(
+            "aoa",
+            number_layers=1,
+            number_shots=64,
+            optimizer_options={"maxiter": 5},
+        )
+
+        result = matching_pursuit(
+            sketch,
+            iteration_number=2,
+            optimizer=aoa,
+            return_optimizer_metadata=True,
+        )
+
+        assert result.optimizer_metadata is not None
+        assert len(result.optimizer_metadata) == result.n_lines
+        assert result.optimizer_metadata[0] is not None
+        assert result.optimizer_metadata[0]["final_parameters"].shape == (2,)
+        assert result.optimizer_metadata[0]["circuit_depth"] > 0
 
     def test_requires_problem_sketch_instance(self):
         with pytest.raises(TypeError):

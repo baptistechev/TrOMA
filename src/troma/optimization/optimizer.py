@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import inspect
 from importlib import import_module
+import numbers
 from typing import Any, Callable
 from .._validation import _Validator
 
@@ -78,7 +79,12 @@ class FunctionOptimizer(Optimizer):
         final_kwargs = dict(self._default_kwargs)
         final_kwargs.update(kwargs)
         final_args, final_kwargs = self._prepare_call(final_args, final_kwargs)
-        return int(self._function(*final_args, **final_kwargs))
+        result = self._function(*final_args, **final_kwargs)
+        if isinstance(result, int):
+            return result
+        if isinstance(result, numbers.Integral):
+            return int(result)
+        raise TypeError(f"Optimizer '{self.name}' must return an integer result.")
 
     def with_defaults(self, *args: Any, **kwargs: Any) -> "FunctionOptimizer":
         """Return a new optimizer with additional default arguments pre-bound."""

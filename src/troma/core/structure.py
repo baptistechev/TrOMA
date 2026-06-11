@@ -36,6 +36,8 @@ class MatchingPursuitResults:
         Marginals used to run matching pursuit.
     raw : np.ndarray
         Raw backend output as a 2-column array ``[index, coefficient]``.
+    optimizer_metadata : list[dict[str, Any] | None] | None
+        Optional per-iteration optimizer metadata when requested.
     """
 
     positions: np.ndarray
@@ -47,6 +49,7 @@ class MatchingPursuitResults:
     interaction_size: int | None
     marginals: np.ndarray
     raw: np.ndarray
+    optimizer_metadata: list[dict[str, Any] | None] | None = None
 
     @property
     def n_lines(self) -> int:
@@ -79,6 +82,7 @@ class MatchingPursuitResults:
             "interaction_size": self.interaction_size,
             "marginals": self.marginals,
             "raw": self.raw,
+            "optimizer_metadata": self.optimizer_metadata,
             "n_lines": self.n_lines,
         }
 
@@ -90,6 +94,42 @@ from typing import Any
 import numpy as np
 
 from .._validation import _Validator
+
+
+class VariationalOptimizationResult(int):
+    """Integer-like optimization result carrying variational metadata."""
+
+    def __new__(
+        cls,
+        best_index: int,
+        *,
+        final_parameters: np.ndarray,
+        gammas: list[float],
+        betas: list[float],
+        number_layers: int,
+        circuit_depth: int,
+        solver_steps: int,
+        objective_evaluations: int,
+        truth_objective_evaluations: int = 0,
+        final_sample_distribution: dict | None = None,
+    ) -> "VariationalOptimizationResult":
+        value = _Validator.ensure_int("best_index", best_index, min_value=0)
+        obj = int.__new__(cls, value)
+        obj.best_index = value
+        obj.final_parameters = np.asarray(final_parameters, dtype=float).copy()
+        obj.gammas = tuple(float(gamma) for gamma in gammas)
+        obj.betas = tuple(float(beta) for beta in betas)
+        obj.number_layers = _Validator.ensure_int("number_layers", number_layers, min_value=1)
+        obj.circuit_depth = _Validator.ensure_int("circuit_depth", circuit_depth, min_value=0)
+        obj.solver_steps = _Validator.ensure_int("solver_steps", solver_steps, min_value=0)
+        obj.objective_evaluations = _Validator.ensure_int(
+            "objective_evaluations", objective_evaluations, min_value=0
+        )
+        obj.truth_objective_evaluations = _Validator.ensure_int(
+            "truth_objective_evaluations", truth_objective_evaluations, min_value=0
+        )
+        obj.final_sample_distribution = dict(final_sample_distribution) if final_sample_distribution is not None else {}
+        return obj
 
 
 class DitString:
