@@ -1,0 +1,356 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>troma decoding modules &mdash; TrOMA libdocs 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=8d563738"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="troma.optimization package" href="troma.optimization.html" />
+    <link rel="prev" title="troma package" href="troma.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            TrOMA libdocs
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../public_api.html">Public API</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">detailed functions documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="troma.html">troma package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="troma.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4 current"><a class="current reference internal" href="#">troma decoding modules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="troma.optimization.html">troma.optimization package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#troma-combinatorial-problem-module">troma.combinatorial_problem module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#troma-matching-pursuit-module">troma.matching_pursuit module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#troma-problem-sketch-module">troma.problem_sketch module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#troma-sketch-map-module">troma.sketch_map module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troma.html#module-contents">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">TrOMA libdocs</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">detailed functions documentation</a></li>
+          <li class="breadcrumb-item"><a href="troma.html">troma package</a></li>
+      <li class="breadcrumb-item active">troma decoding modules</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/troma.decoding.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="troma-decoding-modules">
+<h1>troma decoding modules<a class="headerlink" href="#troma-decoding-modules" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+</section>
+<section id="module-troma.core.decoding_proced">
+<span id="troma-core-decoding-proced-module"></span><h2>troma.core.decoding_proced module<a class="headerlink" href="#module-troma.core.decoding_proced" title="Link to this heading"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="troma.core.decoding_proced.matchingpursuit_abstract">
+<span class="sig-prename descclassname"><span class="pre">troma.core.decoding_proced.</span></span><span class="sig-name descname"><span class="pre">matchingpursuit_abstract</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">problem_sketch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.problem_sketch.ProblemSketch"><span class="pre">ProblemSketch</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">iteration_number</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_processing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_optimizer_metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#troma.core.decoding_proced.matchingpursuit_abstract" title="Link to this definition"></a></dt>
+<dd><p>Perform matching pursuit using an abstract (implicit) sketch representation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>problem_sketch</strong> (<a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.ProblemSketch"><em>ProblemSketch</em></a>) – Problem sketch containing sketch values and a ConstraintSketchMap.</p></li>
+<li><p><strong>iteration_number</strong> (<em>int</em>) – The number of iterations.</p></li>
+<li><p><strong>step</strong> (<em>float</em><em>, </em><em>optional</em>) – The step size. If None, adaptive.</p></li>
+<li><p><strong>optimizer</strong> (<a class="reference internal" href="troma.optimization.html#troma.optimization.optimizer.Optimizer" title="troma.optimization.optimizer.Optimizer"><em>Optimizer</em></a><em>, </em><em>optional</em>) – Instantiated optimizer. If None, a spin-chain NN optimizer is used.</p></li>
+<li><p><strong>post_processing</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of a post-processing function to apply to the optimizer solution
+at each iteration.  Supported values: <code class="docutils literal notranslate"><span class="pre">&quot;2_bit_swap&quot;</span></code>.</p></li>
+<li><p><strong>return_optimizer_metadata</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, collect per-iteration optimizer metadata when available.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, print per-iteration information about the post-processing
+outcome. Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>2D array where each row is [column_index, coefficient].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="troma.core.decoding_proced.matchingpursuit_explicit">
+<span class="sig-prename descclassname"><span class="pre">troma.core.decoding_proced.</span></span><span class="sig-name descname"><span class="pre">matchingpursuit_explicit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">problem_sketch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.problem_sketch.ProblemSketch"><span class="pre">ProblemSketch</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">iteration_number</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">optimizer</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">post_processing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_optimizer_metadata</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="headerlink" href="#troma.core.decoding_proced.matchingpursuit_explicit" title="Link to this definition"></a></dt>
+<dd><p>Perform matching pursuit to find a sparse solution to the linear system defined by the sketch matrix and the marginals.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>problem_sketch</strong> (<a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.ProblemSketch"><em>ProblemSketch</em></a>) – Problem sketch containing sketch values and an ExplicitSketchMap.</p></li>
+<li><p><strong>iteration_number</strong> (<em>int</em>) – The number of iterations to perform.</p></li>
+<li><p><strong>step</strong> (<em>float</em><em>, </em><em>optional</em>) – The step size. If None, an adaptive step size is used.</p></li>
+<li><p><strong>optimizer</strong> (<a class="reference internal" href="troma.optimization.html#troma.optimization.optimizer.Optimizer" title="troma.optimization.optimizer.Optimizer"><em>Optimizer</em></a><em>, </em><em>optional</em>) – Instantiated optimizer. If None, a brute-force optimizer is used.</p></li>
+<li><p><strong>post_processing</strong> (<em>str</em><em> or </em><em>None</em><em>, </em><em>optional</em>) – Name of a post-processing function to apply to the optimizer solution
+at each iteration.  Supported values: <code class="docutils literal notranslate"><span class="pre">&quot;2_bit_swap&quot;</span></code>.</p></li>
+<li><p><strong>return_optimizer_metadata</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, collect per-iteration optimizer metadata when available.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, print per-iteration information about the post-processing
+outcome. Default is False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>2D array where each row is [column_index, coefficient].</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="troma-matching-pursuit-module">
+<h2>troma.matching_pursuit module<a class="headerlink" href="#troma-matching-pursuit-module" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">FunctionMatchingPursuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">MatchingPursuit</span></code></p>
+<p>Adapter exposing a plain matching-pursuit function through a common interface.</p>
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span></dt>
+<dd><p>Run matching pursuit and return the sparse reconstruction.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">with_defaults</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">FunctionMatchingPursuit</span></span></span></dt>
+<dd><p>Return a new matching-pursuit adapter with additional default arguments pre-bound.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">MatchingPursuit</span></span></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Common interface for all matching-pursuit backends.</p>
+<dl class="py method">
+<dt class="sig sig-object py">
+<span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span></dt>
+<dd><p>Run matching pursuit and return the sparse reconstruction.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">bind_matching_pursuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">MatchingPursuit</span></span></span></dt>
+<dd><p>Instantiate a matching-pursuit adapter with default arguments pre-bound.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – The name of the matching-pursuit backend to retrieve. Available backends can be listed with <cite>list_matching_pursuits()</cite>.</p></li>
+<li><p><strong>*args</strong> (<em>Any</em>) – Positional arguments to pre-bind. Typical examples are <code class="docutils literal notranslate"><span class="pre">(marginals,)</span></code>.</p></li>
+<li><p><strong>**kwargs</strong> (<em>Any</em>) – <p>Keyword arguments matching the chosen backend. For example:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">bind_matching_pursuit(&quot;explicit&quot;,</span> <span class="pre">marginals,</span> <span class="pre">sketch=sketch,</span> <span class="pre">iteration_number=10)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bind_matching_pursuit(&quot;explicit&quot;,</span> <span class="pre">marginals,</span> <span class="pre">sketch=sketch,</span> <span class="pre">iteration_number=10,</span> <span class="pre">step=0.2,</span> <span class="pre">optimizer=get_optimizer(&quot;brute_force_max&quot;))</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bind_matching_pursuit(&quot;abstract&quot;,</span> <span class="pre">marginals,</span> <span class="pre">dit_constraints=constraints,</span> <span class="pre">dit_string_length=6,</span> <span class="pre">iteration_number=10)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bind_matching_pursuit(&quot;abstract&quot;,</span> <span class="pre">marginals,</span> <span class="pre">dit_constraints=constraints,</span> <span class="pre">dit_string_length=6,</span> <span class="pre">iteration_number=10,</span> <span class="pre">interaction_size=2,</span> <span class="pre">dit_dimension=2)</span></code></p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An instance of the requested matching-pursuit adapter with the specified default arguments.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>MatchingPursuit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">get_matching_pursuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">MatchingPursuit</span></span></span></dt>
+<dd><p>Instantiate a matching-pursuit adapter from a registered backend name.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>name</strong> (<em>str</em>) – The name of the matching-pursuit backend to retrieve. Available backends can be listed with <cite>list_matching_pursuits()</cite>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><p>An instance of the requested matching-pursuit adapter.</p>
+<p class="rubric">Examples</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">get_matching_pursuit(&quot;explicit&quot;)</span></code> returns an adapter usable as</dt><dd><p><code class="docutils literal notranslate"><span class="pre">mp.run(marginals,</span> <span class="pre">sketch=sketch,</span> <span class="pre">iteration_number=10,</span> <span class="pre">step=0.2)</span></code>.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">get_matching_pursuit(&quot;abstract&quot;)</span></code> returns an adapter usable as</dt><dd><p><code class="docutils literal notranslate"><span class="pre">mp.run(marginals,</span> <span class="pre">dit_constraints=constraints,</span> <span class="pre">dit_string_length=6,</span> <span class="pre">iteration_number=10,</span> <span class="pre">interaction_size=2)</span></code>.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>MatchingPursuit</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">list_matching_pursuits</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span></dt>
+<dd><p>Return all registered matching-pursuit backend names.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A list of all registered matching-pursuit backend names.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list[str]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">matching_pursuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">problem_sketch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.problem_sketch.ProblemSketch"><span class="pre">ProblemSketch</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../public_api.html#troma.MatchingPursuitResults" title="troma.core.structure.MatchingPursuitResults"><span class="pre">MatchingPursuitResults</span></a></span></span></dt>
+<dd><p>Run matching pursuit to find a sparse reconstruction.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>problem_sketch</strong> (<a class="reference internal" href="../public_api.html#troma.ProblemSketch" title="troma.ProblemSketch"><em>ProblemSketch</em></a>) – A ProblemSketch instance containing the problem configuration and data.
+The appropriate backend (“explicit” or “abstract”) is selected
+automatically from <code class="docutils literal notranslate"><span class="pre">problem_sketch.sketch_map</span></code>.</p></li>
+<li><p><strong>**kwargs</strong> (<em>Any</em>) – Additional backend keyword arguments (for example <code class="docutils literal notranslate"><span class="pre">iteration_number</span></code>,
+<code class="docutils literal notranslate"><span class="pre">step</span></code> or <code class="docutils literal notranslate"><span class="pre">optimizer</span></code>).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Structured matching-pursuit result with positions, values, dit strings,
+and run metadata.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="../public_api.html#troma.MatchingPursuitResults" title="troma.MatchingPursuitResults">MatchingPursuitResults</a></p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Using the ProblemSketch API:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">troma</span><span class="w"> </span><span class="kn">import</span> <span class="n">CombinatorialProblem</span><span class="p">,</span> <span class="n">ProblemSketch</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">troma.sketch_map</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConstraintSketchMap</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">problem</span> <span class="o">=</span> <span class="n">CombinatorialProblem</span><span class="p">(</span><span class="n">objective_func</span><span class="p">,</span> <span class="n">problem_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">problem_dimension</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">problem</span><span class="o">.</span><span class="n">sampling</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sketch_map</span> <span class="o">=</span> <span class="n">ConstraintSketchMap</span><span class="p">(</span><span class="n">sketch_length</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sketch_map</span><span class="o">.</span><span class="n">build_from_nearest_neighbors</span><span class="p">(</span><span class="n">interaction_size</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">problem_sketch</span> <span class="o">=</span> <span class="n">problem</span><span class="o">.</span><span class="n">sketching</span><span class="p">(</span><span class="n">sketch_map</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">matching_pursuit</span><span class="p">(</span><span class="n">problem_sketch</span><span class="p">,</span> <span class="n">iteration_number</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">troma.matching_pursuit.</span></span><span class="sig-name descname"><span class="pre">run_matching_pursuit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Any</span></span></span></dt>
+<dd><p>Convenience helper to run matching pursuit in one call.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – The name of the matching-pursuit backend to retrieve. Available backends can be listed with <cite>list_matching_pursuits()</cite>.</p></li>
+<li><p><strong>*args</strong> (<em>Any</em>) – Positional arguments to pass to the matching-pursuit function.</p></li>
+<li><p><strong>**kwargs</strong> (<em>Any</em>) – Keyword arguments to pass to the matching-pursuit function.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The result of the matching-pursuit function.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Any</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="troma.html" class="btn btn-neutral float-left" title="troma package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troma.optimization.html" class="btn btn-neutral float-right" title="troma.optimization package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Chevalier Baptiste.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
