@@ -656,6 +656,7 @@ def _run_variational_native(
     method: str,
     optimizer_options: dict | None,
     x0: np.ndarray | None = None,
+    verbose: bool = False,
 ) -> VariationalOptimizationResult:
     gamma_params, beta_params = _split_parameters(isa_circuit, number_layers)
 
@@ -664,12 +665,38 @@ def _run_variational_native(
         mapping.update({p: params[number_layers + i] for i, p in enumerate(beta_params)})
         return isa_circuit.assign_parameters(mapping)
 
+    eval_count = 0
+
     def cost_fn(params: np.ndarray) -> float:
+        nonlocal eval_count
+        eval_count += 1
+        t0 = time.perf_counter()
+        if verbose:
+            rounded = [float(f"{v:.4f}") for v in np.asarray(params, dtype=float)]
+            print(
+                f"[quantum_native] objective eval #{eval_count} start params={rounded}",
+                flush=True,
+            )
         counts = runner(bind(params), number_shots)
-        return -_mean_energy(counts, terms, num_vars)
+        value = -_mean_energy(counts, terms, num_vars)
+        if verbose:
+            dt_ms = (time.perf_counter() - t0) * 1000
+            print(
+                f"[quantum_native] objective eval #{eval_count} done "
+                f"value={value:.8f}  elapsed={dt_ms:.1f}ms",
+                flush=True,
+            )
+        return value
 
     number_parameters = 2 * number_layers
     bounds = np.array([[-np.pi, np.pi]] * number_parameters, dtype=float)
+    if verbose:
+        print(
+            f"[quantum_native] scipy.minimize start method={method} "
+            f"dimensions={number_parameters}",
+            flush=True,
+        )
+
     res = sk_opt.minimize(
         cost_fn,
         x0=np.ones(number_parameters) if x0 is None else np.asarray(x0, dtype=float),
@@ -677,6 +704,14 @@ def _run_variational_native(
         method=method,
         options=dict(optimizer_options or {}),
     )
+
+    if verbose:
+        print(
+            f"[quantum_native] scipy.minimize done success={getattr(res, 'success', None)} "
+            f"status={getattr(res, 'status', None)} nit={getattr(res, 'nit', None)} "
+            f"nfev={getattr(res, 'nfev', None)}",
+            flush=True,
+        )
 
     final_counts = runner(bind(res.x), number_shots)
     best_key = max(
@@ -785,7 +820,7 @@ def QAOA(
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
-        number_layers, number_shots, method, optimizer_options, x0=x0,
+        number_layers, number_shots, method, optimizer_options, x0=x0, verbose=verbose,
     )
 
 
@@ -893,5 +928,5 @@ def AOA(
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
-        number_layers, number_shots, method, optimizer_options, x0=x0,
+        number_layers, number_shots, method, optimizer_options, x0=x0, verbose=verbose,
     )
