@@ -212,6 +212,9 @@ class TestBindOptimizer:
         assert isinstance(result, int)
         assert result.final_parameters.shape == (2,)
         assert result.circuit_depth > 0
+        assert result.transpiled_circuit_depth == result.circuit_depth
+        assert hasattr(result, "transpiled_gate_count")
+        assert result.job_id is None
         assert result.solver_steps > 0
 
 

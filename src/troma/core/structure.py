@@ -108,6 +108,9 @@ class VariationalOptimizationResult(int):
         betas: list[float],
         number_layers: int,
         circuit_depth: int,
+        transpiled_circuit_depth: int | None = None,
+        transpiled_gate_count: int | None = None,
+        job_id: str | None = None,
         solver_steps: int,
         objective_evaluations: int,
         truth_objective_evaluations: int = 0,
@@ -121,6 +124,17 @@ class VariationalOptimizationResult(int):
         obj.betas = tuple(float(beta) for beta in betas)
         obj.number_layers = _Validator.ensure_int("number_layers", number_layers, min_value=1)
         obj.circuit_depth = _Validator.ensure_int("circuit_depth", circuit_depth, min_value=0)
+        obj.transpiled_circuit_depth = _Validator.ensure_int(
+            "transpiled_circuit_depth",
+            circuit_depth if transpiled_circuit_depth is None else transpiled_circuit_depth,
+            min_value=0,
+        )
+        obj.transpiled_gate_count = (
+            None
+            if transpiled_gate_count is None
+            else _Validator.ensure_int("transpiled_gate_count", transpiled_gate_count, min_value=0)
+        )
+        obj.job_id = None if job_id is None else str(job_id)
         obj.solver_steps = _Validator.ensure_int("solver_steps", solver_steps, min_value=0)
         obj.objective_evaluations = _Validator.ensure_int(
             "objective_evaluations", objective_evaluations, min_value=0

@@ -204,6 +204,9 @@ class TestMatchingPursuitIntegration:
         assert result.optimizer_metadata[0] is not None
         assert result.optimizer_metadata[0]["final_parameters"].shape == (2,)
         assert result.optimizer_metadata[0]["circuit_depth"] > 0
+        assert result.optimizer_metadata[0]["transpiled_circuit_depth"] > 0
+        assert "transpiled_gate_count" in result.optimizer_metadata[0]
+        assert result.optimizer_metadata[0]["job_id"] is None
 
     def test_requires_problem_sketch_instance(self):
         with pytest.raises(TypeError):
