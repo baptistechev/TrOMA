@@ -39,6 +39,7 @@ Conventions (matching the qamomile-based implementation):
 from __future__ import annotations
 
 from typing import Any
+import time
 
 import numpy as np
 import scipy.optimize as sk_opt
@@ -509,12 +510,17 @@ def _transpile_ansatz(
     return isa_circuit
 
 
-def _make_runner(backend: Any | None, number_shots: int, sampler_options: dict | None):
+def _make_runner(
+    backend: Any | None,
+    number_shots: int,
+    sampler_options: dict | None,
+    verbose: bool = False,
+):
     """Return (runner, backend, execution_info) where runner(circuit, shots) -> counts dict."""
     if backend is None:
         backend = AerSimulator()
 
-    execution_info = {"last_job_id": None}
+    execution_info = {"last_job_id": None, "call_count": 0}
 
     def _job_id(job: Any) -> str | None:
         value = getattr(job, "job_id", None)
@@ -534,20 +540,50 @@ def _make_runner(backend: Any | None, number_shots: int, sampler_options: dict |
         sampler = _build_runtime_sampler(backend, number_shots, sampler_options)
 
         def runner(circuit, shots):
+            t0 = time.perf_counter()
             job = sampler.run([circuit], shots=shots)
             if _is_real_qpu(backend):
                 execution_info["last_job_id"] = _job_id(job)
             data = job.result()[0].data
             reg_name = next(iter(data))
-            return getattr(data, reg_name).get_counts()
+            counts = getattr(data, reg_name).get_counts()
+
+            execution_info["call_count"] += 1
+            if verbose:
+                total_ms = (time.perf_counter() - t0) * 1000
+                print(
+                    f"[quantum_native #{execution_info['call_count']}] "
+                    f"total={total_ms:.1f}ms  backend={getattr(backend, 'name', '?')}  "
+                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}"
+                )
+            return counts
 
     else:
 
         def runner(circuit, shots):
+            t0 = time.perf_counter()
             job = backend.run(circuit, shots=shots)
             if _is_real_qpu(backend):
                 execution_info["last_job_id"] = _job_id(job)
-            return job.result().get_counts()
+            result = job.result()
+            counts = result.get_counts()
+
+            execution_info["call_count"] += 1
+            if verbose:
+                exp = result.results[0]
+                meta = exp.metadata if hasattr(exp, "metadata") else {}
+                sim_ms = (exp.time_taken or 0.0) * 1000 if hasattr(exp, "time_taken") else 0.0
+                total_ms = (time.perf_counter() - t0) * 1000
+                print(
+                    f"[quantum_native #{execution_info['call_count']}] "
+                    f"total={total_ms:.1f}ms  sim={sim_ms:.2f}ms  "
+                    f"overhead={total_ms - sim_ms:.1f}ms  "
+                    f"device={meta.get('device', '?')}  method={meta.get('method', '?')}  "
+                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  "
+                    f"shots={shots}  success={result.success}  status={exp.status}"
+                )
+
+            return counts
 
     return runner, backend, execution_info
 
@@ -707,7 +743,12 @@ def QAOA(
     ansatz = annotated_qaoa_ansatz(cost_op, reps=number_layers)
     ansatz.measure_all()
 
-    runner, backend, execution_info = _make_runner(backend, number_shots, sampler_options)
+    runner, backend, execution_info = _make_runner(
+        backend,
+        number_shots,
+        sampler_options,
+        verbose=verbose,
+    )
     isa_circuit = _transpile_ansatz(
         ansatz,
         backend,
@@ -721,7 +762,8 @@ def QAOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
 
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
@@ -799,7 +841,12 @@ def AOA(
     )
     ansatz.measure_all()
 
-    runner, backend, execution_info = _make_runner(backend, number_shots, sampler_options)
+    runner, backend, execution_info = _make_runner(
+        backend,
+        number_shots,
+        sampler_options,
+        verbose=verbose,
+    )
     isa_circuit = _transpile_ansatz(
         ansatz,
         backend,
@@ -813,7 +860,8 @@ def AOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
 
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
