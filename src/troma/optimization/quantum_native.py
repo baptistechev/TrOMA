@@ -678,31 +678,12 @@ def _run_variational_native(
         nonlocal eval_count
         eval_count += 1
         t0 = time.perf_counter()
-        if verbose:
-            rounded = [float(f"{v:.4f}") for v in np.asarray(params, dtype=float)]
-            print(
-                f"[quantum_native] objective eval #{eval_count} start params={rounded}",
-                flush=True,
-            )
         counts = runner(bind(params), number_shots)
         value = -_mean_energy(counts, terms, num_vars)
-        if verbose:
-            dt_ms = (time.perf_counter() - t0) * 1000
-            print(
-                f"[quantum_native] objective eval #{eval_count} done "
-                f"value={value:.8f}  elapsed={dt_ms:.1f}ms",
-                flush=True,
-            )
         return value
 
     number_parameters = 2 * number_layers
     bounds = np.array([[-np.pi, np.pi]] * number_parameters, dtype=float)
-    if verbose:
-        print(
-            f"[quantum_native] scipy.minimize start method={method} "
-            f"dimensions={number_parameters}",
-            flush=True,
-        )
 
     res = sk_opt.minimize(
         cost_fn,
