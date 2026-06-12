@@ -26,6 +26,11 @@ def _extract_optimizer_metadata(result: Any, selected_index: int) -> dict[str, A
         "betas": tuple(float(beta) for beta in getattr(result, "betas", ())),
         "number_layers": int(getattr(result, "number_layers", 0)),
         "circuit_depth": int(getattr(result, "circuit_depth", 0)),
+        "transpiled_circuit_depth": int(
+            getattr(result, "transpiled_circuit_depth", getattr(result, "circuit_depth", 0))
+        ),
+        "transpiled_gate_count": getattr(result, "transpiled_gate_count", None),
+        "job_id": getattr(result, "job_id", None),
         "solver_steps": int(getattr(result, "solver_steps", 0)),
         "objective_evaluations": int(getattr(result, "objective_evaluations", 0)),
         "truth_objective_evaluations": int(getattr(result, "truth_objective_evaluations", 0)),

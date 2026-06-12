@@ -107,6 +107,8 @@ _OPTIMIZER_REGISTRY: dict[str, tuple[str, str]] = {
     "digital_annealing": ("quantum", "digital_annealing"),
     "qaoa": ("quantum", "QAOA"),
     "aoa": ("quantum", "AOA"),
+    "qaoa_native": ("quantum_native", "QAOA"),
+    "aoa_native": ("quantum_native", "AOA"),
 }
 
 
