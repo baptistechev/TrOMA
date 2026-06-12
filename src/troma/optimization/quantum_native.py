@@ -554,7 +554,8 @@ def _make_runner(
                 print(
                     f"[quantum_native #{execution_info['call_count']}] "
                     f"total={total_ms:.1f}ms  backend={getattr(backend, 'name', '?')}  "
-                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}"
+                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}",
+                    flush=True,
                 )
             return counts
 
@@ -569,18 +570,25 @@ def _make_runner(
             counts = result.get_counts()
 
             execution_info["call_count"] += 1
+            total_ms = (time.perf_counter() - t0) * 1000
             if verbose:
-                exp = result.results[0]
-                meta = exp.metadata if hasattr(exp, "metadata") else {}
-                sim_ms = (exp.time_taken or 0.0) * 1000 if hasattr(exp, "time_taken") else 0.0
-                total_ms = (time.perf_counter() - t0) * 1000
+                try:
+                    exp = result.results[0]
+                    meta = exp.metadata if hasattr(exp, "metadata") else {}
+                    sim_ms = (exp.time_taken or 0.0) * 1000 if hasattr(exp, "time_taken") else 0.0
+                    extra = (
+                        f"  sim={sim_ms:.2f}ms  overhead={total_ms - sim_ms:.1f}ms"
+                        f"  device={meta.get('device', '?')}  method={meta.get('method', '?')}"
+                        f"  success={result.success}  status={exp.status}"
+                    )
+                except Exception:
+                    extra = ""
                 print(
                     f"[quantum_native #{execution_info['call_count']}] "
-                    f"total={total_ms:.1f}ms  sim={sim_ms:.2f}ms  "
-                    f"overhead={total_ms - sim_ms:.1f}ms  "
-                    f"device={meta.get('device', '?')}  method={meta.get('method', '?')}  "
-                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  "
-                    f"shots={shots}  success={result.success}  status={exp.status}"
+                    f"total={total_ms:.1f}ms"
+                    f"  qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}"
+                    + extra,
+                    flush=True,
                 )
 
             return counts
@@ -765,6 +773,16 @@ def QAOA(
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
         x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
 
+    if verbose:
+        opts = dict(optimizer_options or {})
+        print(
+            f"[quantum_native] QAOA starting variational optimisation "
+            f"method={method}  layers={number_layers}  "
+            f"maxiter={opts.get('maxiter', opts.get('maxfun', '?'))}  "
+            f"x0={list(np.round(x0, 4)) if x0 is not None else None}",
+            flush=True,
+        )
+
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
         number_layers, number_shots, method, optimizer_options, x0=x0,
@@ -862,6 +880,16 @@ def AOA(
 
         pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
         x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
+
+    if verbose:
+        opts = dict(optimizer_options or {})
+        print(
+            f"[quantum_native] AOA starting variational optimisation "
+            f"method={method}  layers={number_layers}  "
+            f"maxiter={opts.get('maxiter', opts.get('maxfun', '?'))}  "
+            f"x0={list(np.round(x0, 4)) if x0 is not None else None}",
+            flush=True,
+        )
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
