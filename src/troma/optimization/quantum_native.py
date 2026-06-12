@@ -542,8 +542,15 @@ def _make_runner(
         def runner(circuit, shots):
             t0 = time.perf_counter()
             job = sampler.run([circuit], shots=shots)
+            job_id = _job_id(job)
             if _is_real_qpu(backend):
-                execution_info["last_job_id"] = _job_id(job)
+                execution_info["last_job_id"] = job_id
+            if verbose:
+                print(
+                    f"[quantum_native] submitted runtime job id={job_id} "
+                    f"backend={getattr(backend, 'name', '?')} shots={shots}; waiting for result...",
+                    flush=True,
+                )
             data = job.result()[0].data
             reg_name = next(iter(data))
             counts = getattr(data, reg_name).get_counts()
@@ -554,7 +561,7 @@ def _make_runner(
                 print(
                     f"[quantum_native #{execution_info['call_count']}] "
                     f"total={total_ms:.1f}ms  backend={getattr(backend, 'name', '?')}  "
-                    f"qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}",
+                    f"job_id={job_id}  qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}",
                     flush=True,
                 )
             return counts
