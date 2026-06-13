@@ -39,6 +39,7 @@ Conventions (matching the qamomile-based implementation):
 from __future__ import annotations
 
 from typing import Any
+import time
 
 import numpy as np
 import scipy.optimize as sk_opt
@@ -510,12 +511,17 @@ def _transpile_ansatz(
     return isa_circuit
 
 
-def _make_runner(backend: Any | None, number_shots: int, sampler_options: dict | None):
+def _make_runner(
+    backend: Any | None,
+    number_shots: int,
+    sampler_options: dict | None,
+    verbose: bool = False,
+):
     """Return (runner, backend, execution_info) where runner(circuit, shots) -> counts dict."""
     if backend is None:
         backend = AerSimulator()
 
-    execution_info = {"last_job_id": None}
+    execution_info = {"last_job_id": None, "call_count": 0}
 
     def _job_id(job: Any) -> str | None:
         value = getattr(job, "job_id", None)
@@ -535,20 +541,65 @@ def _make_runner(backend: Any | None, number_shots: int, sampler_options: dict |
         sampler = _build_runtime_sampler(backend, number_shots, sampler_options)
 
         def runner(circuit, shots):
+            t0 = time.perf_counter()
             job = sampler.run([circuit], shots=shots)
+            job_id = _job_id(job)
             if _is_real_qpu(backend):
-                execution_info["last_job_id"] = _job_id(job)
+                execution_info["last_job_id"] = job_id
+            if verbose:
+                print(
+                    f"[quantum_native] submitted runtime job id={job_id} "
+                    f"backend={getattr(backend, 'name', '?')} shots={shots}; waiting for result...",
+                    flush=True,
+                )
             data = job.result()[0].data
             reg_name = next(iter(data))
-            return getattr(data, reg_name).get_counts()
+            counts = getattr(data, reg_name).get_counts()
+
+            execution_info["call_count"] += 1
+            if verbose:
+                total_ms = (time.perf_counter() - t0) * 1000
+                print(
+                    f"[quantum_native #{execution_info['call_count']}] "
+                    f"total={total_ms:.1f}ms  backend={getattr(backend, 'name', '?')}  "
+                    f"job_id={job_id}  qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}",
+                    flush=True,
+                )
+            return counts
 
     else:
 
         def runner(circuit, shots):
+            t0 = time.perf_counter()
             job = backend.run(circuit, shots=shots)
             if _is_real_qpu(backend):
                 execution_info["last_job_id"] = _job_id(job)
-            return job.result().get_counts()
+            result = job.result()
+            counts = result.get_counts()
+
+            execution_info["call_count"] += 1
+            total_ms = (time.perf_counter() - t0) * 1000
+            if verbose:
+                try:
+                    exp = result.results[0]
+                    meta = exp.metadata if hasattr(exp, "metadata") else {}
+                    sim_ms = (exp.time_taken or 0.0) * 1000 if hasattr(exp, "time_taken") else 0.0
+                    extra = (
+                        f"  sim={sim_ms:.2f}ms  overhead={total_ms - sim_ms:.1f}ms"
+                        f"  device={meta.get('device', '?')}  method={meta.get('method', '?')}"
+                        f"  success={result.success}  status={exp.status}"
+                    )
+                except Exception:
+                    extra = ""
+                print(
+                    f"[quantum_native #{execution_info['call_count']}] "
+                    f"total={total_ms:.1f}ms"
+                    f"  qubits={circuit.num_qubits}  gates={circuit.size()}  shots={shots}"
+                    + extra,
+                    flush=True,
+                )
+
+            return counts
 
     return runner, backend, execution_info
 
@@ -674,6 +725,7 @@ def _run_variational_native(
     optimizer_options: dict | None,
     x0: np.ndarray | None = None,
     problem_sketch: ProblemSketch | None = None,
+    verbose: bool = False,
 ) -> VariationalOptimizationResult:
     gamma_params, beta_params = _split_parameters(isa_circuit, number_layers)
 
@@ -682,12 +734,19 @@ def _run_variational_native(
         mapping.update({p: params[number_layers + i] for i, p in enumerate(beta_params)})
         return isa_circuit.assign_parameters(mapping)
 
+    eval_count = 0
+
     def cost_fn(params: np.ndarray) -> float:
+        nonlocal eval_count
+        eval_count += 1
+        t0 = time.perf_counter()
         counts = runner(bind(params), number_shots)
-        return -_mean_energy(counts, terms, num_vars)
+        value = -_mean_energy(counts, terms, num_vars)
+        return value
 
     number_parameters = 2 * number_layers
     bounds = np.array([[-np.pi, np.pi]] * number_parameters, dtype=float)
+
     res = sk_opt.minimize(
         cost_fn,
         x0=np.ones(number_parameters) if x0 is None else np.asarray(x0, dtype=float),
@@ -695,6 +754,14 @@ def _run_variational_native(
         method=method,
         options=dict(optimizer_options or {}),
     )
+
+    if verbose:
+        print(
+            f"[quantum_native] scipy.minimize done success={getattr(res, 'success', None)} "
+            f"status={getattr(res, 'status', None)} nit={getattr(res, 'nit', None)} "
+            f"nfev={getattr(res, 'nfev', None)}",
+            flush=True,
+        )
 
     final_counts = runner(bind(res.x), number_shots)
     best_index, truth_evals = _select_best_by_real_cost(final_counts, terms, num_vars, problem_sketch)
@@ -766,7 +833,12 @@ def QAOA(
     ansatz = annotated_qaoa_ansatz(cost_op, reps=number_layers)
     ansatz.measure_all()
 
-    runner, backend, execution_info = _make_runner(backend, number_shots, sampler_options)
+    runner, backend, execution_info = _make_runner(
+        backend,
+        number_shots,
+        sampler_options,
+        verbose=verbose,
+    )
     isa_circuit = _transpile_ansatz(
         ansatz,
         backend,
@@ -780,12 +852,23 @@ def QAOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
 
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
+
+    if verbose:
+        opts = dict(optimizer_options or {})
+        print(
+            f"[quantum_native] QAOA starting variational optimisation "
+            f"method={method}  layers={number_layers}  "
+            f"maxiter={opts.get('maxiter', opts.get('maxfun', '?'))}  "
+            f"x0={list(np.round(x0, 4)) if x0 is not None else None}",
+            flush=True,
+        )
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
-        number_layers, number_shots, method, optimizer_options, x0=x0,
-        problem_sketch=problem_sketch,
+        number_layers, number_shots, method, optimizer_options, x0=x0,verbose=verbose,
+        problem_sketch=problem_sketch
     )
 
 
@@ -859,7 +942,12 @@ def AOA(
     )
     ansatz.measure_all()
 
-    runner, backend, execution_info = _make_runner(backend, number_shots, sampler_options)
+    runner, backend, execution_info = _make_runner(
+        backend,
+        number_shots,
+        sampler_options,
+        verbose=verbose,
+    )
     isa_circuit = _transpile_ansatz(
         ansatz,
         backend,
@@ -873,10 +961,21 @@ def AOA(
     if pretrain:
         from ._quantum_pre_training import pretrain_qaoa_parameters
 
-        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, **dict(pretrain_options or {}))
+        pretrain_opts = {k: v for k, v in (pretrain_options or {}).items() if k != "verbose"}
+        x0 = pretrain_qaoa_parameters(hamiltonian, number_layers, verbose=verbose, **pretrain_opts)
+
+    if verbose:
+        opts = dict(optimizer_options or {})
+        print(
+            f"[quantum_native] AOA starting variational optimisation "
+            f"method={method}  layers={number_layers}  "
+            f"maxiter={opts.get('maxiter', opts.get('maxfun', '?'))}  "
+            f"x0={list(np.round(x0, 4)) if x0 is not None else None}",
+            flush=True,
+        )
 
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
-        number_layers, number_shots, method, optimizer_options, x0=x0,
-        problem_sketch=problem_sketch,
+        number_layers, number_shots, method, optimizer_options, x0=x0,verbose=verbose,
+        problem_sketch=problem_sketch
     )

@@ -9,6 +9,7 @@ import scipy.optimize as sk_opt
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import SamplerV2 as RuntimeSamplerV2
 from qiskit import transpile
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qamomile.optimization.qaoa import QAOAConverter
 from qamomile.optimization.aoa import AOAConverter
 from qamomile.qiskit import QiskitTranspiler
@@ -21,7 +22,19 @@ from ..core.embedding import reverse_spectrum_restriction
 from .._validation import _Validator
 
 
-def _extract_circuit_depth(executable: Any) -> int:
+def _extract_circuit_stats(executable: Any, backend: Any) -> tuple[int, int, int | None]:
+    """Return (logical_depth, transpiled_depth, transpiled_gate_count).
+
+    ``logical_depth`` is the depth of qamomile's circuit as built (still using
+    high-level multi-qubit gates such as ``RZZ``/XY-mixer rotations, which
+    ``AerLocalExecutor`` runs natively without decomposition). The other two
+    figures are obtained by running the same circuit through
+    ``generate_preset_pass_manager(optimization_level=3, backend=backend)`` —
+    the pass manager used by the qiskit-native optimizers in
+    :mod:`troma.optimization.quantum_native` — so depth/gate-count are
+    comparable across both code paths. This transpilation is only used for
+    reporting; the circuit actually executed is unchanged.
+    """
     circuit = None
     if hasattr(executable, "get_first_circuit"):
         circuit = executable.get_first_circuit()
@@ -29,8 +42,16 @@ def _extract_circuit_depth(executable: Any) -> int:
         circuit = executable.quantum_circuit
 
     if circuit is None or not hasattr(circuit, "depth"):
-        return 0
-    return int(circuit.depth())
+        return 0, 0, None
+
+    logical_depth = int(circuit.depth())
+
+    try:
+        pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
+        isa_circuit = pm.run(circuit)
+        return logical_depth, int(isa_circuit.depth()), int(isa_circuit.size())
+    except Exception:
+        return logical_depth, logical_depth, None
 
 
 def _extract_solver_steps(result: Any) -> int:
@@ -213,6 +234,7 @@ def _run_variational(
     x0: np.ndarray | None = None,
     return_metadata: bool = False,
     problem_sketch: ProblemSketch | None = None,
+    backend: Any | None = None,
 ) -> int:
     feasibility_fn = getattr(problem_sketch, "feasibility_function", None)
 
@@ -280,13 +302,19 @@ def _run_variational(
     if not return_metadata:
         return best_index
 
+    circuit_depth, transpiled_circuit_depth, transpiled_gate_count = _extract_circuit_stats(
+        executable, backend
+    )
+
     return VariationalOptimizationResult(
         best_index,
         final_parameters=final_parameters,
         gammas=gammas_opt,
         betas=betas_opt,
         number_layers=number_layers,
-        circuit_depth=_extract_circuit_depth(executable),
+        circuit_depth=circuit_depth,
+        transpiled_circuit_depth=transpiled_circuit_depth,
+        transpiled_gate_count=transpiled_gate_count,
         solver_steps=_extract_solver_steps(res),
         objective_evaluations=int(getattr(res, "nfev", _extract_solver_steps(res))),
         truth_objective_evaluations=truth_evals,
@@ -345,6 +373,7 @@ def QAOA(
         x0=x0,
         return_metadata=return_metadata,
         problem_sketch=problem_sketch,
+        backend=backend,
     )
 
 
@@ -453,4 +482,5 @@ def AOA(
         x0=x0,
         return_metadata=return_metadata,
         problem_sketch=problem_sketch,
+        backend=backend,
     )
