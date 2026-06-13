@@ -73,7 +73,8 @@ from qopt_best_practices.transpilation.annotated_transpilation_passes import (
 
 from .quantum import _validate_variational_inputs, _build_runtime_sampler
 from ..core.structure import DitString, Hamiltonian, VariationalOptimizationResult
-from ..problem_sketch import ProblemSketch
+from ..core.embedding import reverse_spectrum_restriction
+from ..problem_sketch import ProblemSketch, RestrictedProblemSketch
 from .._validation import _Validator
 
 
@@ -601,6 +602,66 @@ def _split_parameters(circuit: QuantumCircuit, number_layers: int):
     return gammas, betas
 
 
+def _select_best_by_real_cost(
+    final_counts: dict[str, int],
+    terms: dict[tuple[int, ...], float],
+    num_vars: int,
+    problem_sketch: ProblemSketch | None,
+) -> tuple[int, int]:
+    """Pick the best feasible bitstring from the final counts by real objective value.
+
+    Mirrors :func:`troma.optimization.quantum._select_best_by_real_cost`: every
+    distinct bitstring sampled from the optimized circuit is decoded, mapped
+    back to the full problem space if restricted, and evaluated with
+    ``problem_sketch.objective_function``. Bitstrings rejected by
+    ``problem_sketch.feasibility_function`` (if any) are skipped. Candidates
+    are visited in order of decreasing Hamiltonian energy, so ties in
+    objective value fall back to the highest-energy (most-sampled-favoured)
+    bitstring. Falls back to the maximum-Hamiltonian-energy bitstring if no
+    ``problem_sketch`` is given or none of the sampled bitstrings are feasible.
+    """
+    objective_function = getattr(problem_sketch, "objective_function", None)
+    if objective_function is not None:
+        feasibility_function = getattr(problem_sketch, "feasibility_function", None)
+        best_val: float | None = None
+        best_index: int | None = None
+        n_evaluations = 0
+
+        keys_by_energy = sorted(
+            final_counts, key=lambda k: _energy_of_bits(_key_to_bits(k, num_vars), terms), reverse=True
+        )
+        for key in keys_by_energy:
+            dit_string = DitString(_key_to_bits(key, num_vars), dimension=2)
+
+            if isinstance(problem_sketch, RestrictedProblemSketch):
+                full = reverse_spectrum_restriction(
+                    [dit_string],
+                    original_size=problem_sketch.problem_size,
+                    dit_restrictions=problem_sketch.restriction.dit_restrictions,
+                    dit_value_restrictions=problem_sketch.restriction.dit_value_restrictions,
+                    additional_dits_val=problem_sketch.restriction.additional_dits_val,
+                )
+                eval_str = full[0]
+            else:
+                eval_str = dit_string
+
+            eval_arr = np.asarray(eval_str)
+            if feasibility_function is not None and not feasibility_function(eval_arr):
+                continue
+
+            val = float(objective_function(eval_arr))
+            n_evaluations += 1
+            if best_val is None or val > best_val:
+                best_val = val
+                best_index = dit_string.to_integer('R')
+
+        if best_index is not None:
+            return best_index, n_evaluations
+
+    best_key = max(final_counts, key=lambda k: _energy_of_bits(_key_to_bits(k, num_vars), terms))
+    return DitString(_key_to_bits(best_key, num_vars), dimension=2).to_integer(), 0
+
+
 def _run_variational_native(
     isa_circuit: QuantumCircuit,
     runner,
@@ -612,6 +673,7 @@ def _run_variational_native(
     method: str,
     optimizer_options: dict | None,
     x0: np.ndarray | None = None,
+    problem_sketch: ProblemSketch | None = None,
 ) -> VariationalOptimizationResult:
     gamma_params, beta_params = _split_parameters(isa_circuit, number_layers)
 
@@ -635,11 +697,7 @@ def _run_variational_native(
     )
 
     final_counts = runner(bind(res.x), number_shots)
-    best_key = max(
-        final_counts,
-        key=lambda k: _energy_of_bits(_key_to_bits(k, num_vars), terms),
-    )
-    best_index = DitString(_key_to_bits(best_key, num_vars), dimension=2).to_integer()
+    best_index, truth_evals = _select_best_by_real_cost(final_counts, terms, num_vars, problem_sketch)
 
     return VariationalOptimizationResult(
         best_index,
@@ -653,6 +711,7 @@ def _run_variational_native(
         job_id=None if execution_info is None else execution_info.get("last_job_id"),
         solver_steps=int(getattr(res, "nit", 0) or 0),
         objective_evaluations=int(getattr(res, "nfev", 0) or 0),
+        truth_objective_evaluations=truth_evals,
         final_sample_distribution=final_counts,
     )
 
@@ -726,6 +785,7 @@ def QAOA(
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
         number_layers, number_shots, method, optimizer_options, x0=x0,
+        problem_sketch=problem_sketch,
     )
 
 
@@ -818,4 +878,5 @@ def AOA(
     return _run_variational_native(
         isa_circuit, runner, execution_info, terms, hamiltonian.num_qubits,
         number_layers, number_shots, method, optimizer_options, x0=x0,
+        problem_sketch=problem_sketch,
     )
